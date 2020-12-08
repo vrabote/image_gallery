@@ -81,7 +81,7 @@ $comments = file_exists($commentFilePath)
                     <p class="<?php echo (($key % 2) > 0) ? 'bg-light' : ''; ?>"><?php echo $comment; ?></p>
                 <?php endforeach; ?>
             <?php else: ?>
-                <p class="text-muted">Пока ни одного коммантария, будте первым!</p>
+                <p class="text-muted">Пока ни одного коммантария, будьте первым!</p>
             <?php endif; ?>
 
             <!-- Форма добавления комментария -->
