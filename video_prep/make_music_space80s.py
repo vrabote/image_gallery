@@ -1,10 +1,10 @@
 """80s 'space' synth music (Jarre / Vangelis / Moroder flavour): analog arpeggio, lush detuned pads with chorus, pulsing bass,
-drum machine, echo lead, riser. D minor, 110 bpm, 20 bars (~43.6 s) -> music/space80s.wav
-Structure: bars 1-4 pad+arp (float in) | 5-12 bass+drums build | 13-18 drums drop out (room for tape sounds), lead+arp | 19-20 pad ring-out."""
+drum machine, echo lead, riser. D minor, 108 bpm, 18 bars (40 s) -> music/space80s.wav
+Structure: bars 1-3 pad+arp (float in) | 4-10 bass+drums build | 11-16 drums drop out (room for tape sounds), lead+arp | 17-18 pad ring-out."""
 import numpy as np, os
 from scipy.io import wavfile
 from scipy.signal import butter, sosfilt, fftconvolve, resample_poly
-SR=48000; BPM=110; beat=60/BPM; bar=4*beat; NB=20; DUR=NB*bar
+SR=48000; BPM=108; beat=60/BPM; bar=4*beat; NB=18; DUR=NB*bar
 rng=np.random.default_rng(80)
 N=int((DUR+5)*SR)
 def bus(): return np.zeros(N),np.zeros(N)
@@ -52,16 +52,16 @@ pad=(0.65*pad[0]+0.5*chorus(pad[0],0.31),0.65*pad[1]+0.5*chorus(pad[1],0.43,0.00
 step=beat/4; pat=[0,1,2,3,2,1,2,3,0,1,2,3,2,3,2,1]
 for b in range(NB):
     c=chord(b)
-    m=np.interp(b,[0,4,12,17,19],[0.45,0.75,1.25,1.1,0.6]); vel=np.interp(b,[0,3,6],[0.35,0.7,1.0]) if b<6 else (1.0 if b<18 else 0.7)
+    m=np.interp(b,[0,3,9,14,17],[0.45,0.75,1.25,1.1,0.6]); vel=np.interp(b,[0,3,6],[0.35,0.7,1.0]) if b<6 else (1.0 if b<NB-2 else 0.7)
     for i in range(16):
         f=mf(c['arp'][pat[i]]); n=int(step*1.1*SR)
         x=0.6*osc('saw',f,n)+0.4*osc('pulse',f,n,w=0.35)
         x=filt_env(x,4200*m,700*m,0.09)*adsr(n,0.002,0.1,0.35,0.03)
         put(arp,x,b*bar+i*step,0.35+0.3*(i%2),0.16*vel*(1.0 if i%4==0 else 0.8),snd=0.3)
 # ---------- bass ----------
-for b in range(4,NB):
+for b in range(3,NB):
     c=chord(b); r=mf(c['bass'])
-    if b>=18: 
+    if b>=NB-2: 
         n=int(bar*SR*1.3); x=lp(osc('saw',r,n),500)*adsr(n,0.02,5,1,0.8)*0.5+0.4*np.sin(2*np.pi*r*np.arange(n)/SR)*adsr(n,0.02,5,1,0.8)
         put(bass,x,b*bar,0.5,0.5); continue
     for i in range(8):
@@ -79,22 +79,22 @@ def clap():
     return x
 def hat(op=False):
     n=int((0.22 if op else 0.05)*SR); return hp(rng.standard_normal(n),7000)*np.exp(-np.arange(n)/SR/(0.09 if op else 0.015))
-for b in range(4,12):
+for b in range(3,10):
     for q in range(4):
         put(drum,kick(),b*bar+q*beat,0.5,0.75)
         put(drum,hat(),b*bar+q*beat+beat/2,0.6,0.16)
-        if b>=8 and q in(1,3): put(drum,clap(),b*bar+q*beat,0.5,0.28,snd=0.5)
-        if b>=8: put(drum,hat(),b*bar+q*beat,0.4,0.07)
-    if b>=8: put(drum,hat(True),b*bar+3.5*beat,0.55,0.12)
-# ---------- lead (echo synth), bars 9-18 ----------
-for b in range(8,18):
+        if b>=6 and q in(1,3): put(drum,clap(),b*bar+q*beat,0.5,0.28,snd=0.5)
+        if b>=6: put(drum,hat(),b*bar+q*beat,0.4,0.07)
+    if b>=6: put(drum,hat(True),b*bar+3.5*beat,0.55,0.12)
+# ---------- lead (echo synth), bars 7-16 ----------
+for b in range(6,NB-2):
     for (bt,m,d) in mel[b%4]:
-        f=mf(m+(12 if b>=12 and b%4==3 else 0)); n=int(d*beat*1.05*SR+0.5*SR); t=np.arange(n)/SR
+        f=mf(m+(12 if b>=10 and b%4==3 else 0)); n=int(d*beat*1.05*SR+0.5*SR); t=np.arange(n)/SR
         vib=1+0.004*np.sin(2*np.pi*5.2*t)*np.minimum(1,t/0.4); ph=np.cumsum(f*vib)/SR
         x=0.5*(2*((ph)%1)-1)+0.5*(2*((ph*1.004)%1)-1); x=lp(x,2600)*adsr(n,0.02,5,1,0.35)
         put(lead,x,b*bar+bt*beat,0.58,0.1,snd=0.35)
-# ---------- riser into the tape rip (music time ~24.0 -> 27.0 s) ----------
-rs,re=24.0,27.0; n=int((re-rs)*SR); x=np.zeros(n); blk=int(0.1*SR)
+# ---------- riser into the tape rip (music time 20.7 -> 23.7 s; the tape rip starts at 23.7) ----------
+rs,re=20.7,23.7; n=int((re-rs)*SR); x=np.zeros(n); blk=int(0.1*SR)
 for i in range(0,n-blk,blk):
     fc=300*(25**(i/n)); seg=bp(rng.standard_normal(blk),fc*0.7,fc*1.5,2); x[i:i+blk]=seg*(i/n)**2
 put(send,x*0.5,rs,0.5,1.0)

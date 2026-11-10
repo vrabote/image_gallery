@@ -1,6 +1,6 @@
 """Final cut (1080x1920): intro (voice, enhanced) -> dissolve -> painting + stickers (tape sounds) -> fade -> signature on black. Music underneath.
 Prereqs: compressed_IMG_8491.mov, work/stickers_v.mp4 (build_video.py with VW=1080 VH=1346 PADH=1920 FIRST=3 TOTAL=11.5 NOAUDIO=1),
-music/space80s.wav (make_music_space80s.py), clean_voice.py, sfx_options/*.wav, signature.png.  Output: final_video.mp4"""
+music/space80s.wav (make_music_space80s.py), clean_voice.py, uploads/IMG_8491 (online-video-cutter.com).mp4, sfx_options/*.wav, signature.png.  Output: final_video.mp4"""
 import cv2, numpy as np, subprocess, imageio_ffmpeg, sys
 from scipy.io import wavfile
 FF=imageio_ffmpeg.get_ffmpeg_exe(); SR=48000; FPS=30; W,H=1080,1920
@@ -33,13 +33,13 @@ if REBUILD:
       '-c:v','libx264','-crf','15','-preset','slow','-pix_fmt','yuv420p','work/final_silent.mp4'],check=True)
 
 # ---------- audio ----------
-subprocess.run([sys.executable,'clean_voice.py','compressed_IMG_8491.mov','work/voice.wav'],check=True)   # cleaned voice, 0-4.3 s
+subprocess.run([sys.executable,'clean_voice.py','../uploads/IMG_8491 (online-video-cutter.com).mp4','work/voice.wav'],check=True)   # clean voice, 0-7.6 s (uncompressed cut)
 rd=lambda f:(lambda s,x:(x.astype(np.float32)/32768))(*wavfile.read(f))
 N=int(TOTAL*SR); mix=np.zeros((N,2),np.float32)
-MUSIC_START=4.4                                                      # music begins right after the spoken words
+MUSIC_START=7.7                                                      # music begins right after the spoken words
 mus=rd('music/space80s.wav'); m=np.zeros((N,2),np.float32); st=int(MUSIC_START*SR); e=min(N,st+len(mus)); m[st:e]=mus[:e-st]
 t=np.arange(N)/SR; m*=np.minimum(1,np.maximum(TOTAL-t,0)/3.0)[:,None]   # fade out at the very end
-mix+=m*0.8
+mix+=m*0.62
 def put(sig,t0,g=1.0):
     s=int(t0*SR); sig=sig if sig.ndim==1 else sig.mean(1); e=min(N,s+len(sig)); mix[s:e]+=(sig[:e-s]*g)[:,None]
 put(rd('work/voice.wav'),0,1.0)
