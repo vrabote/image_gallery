@@ -3,8 +3,10 @@ Run after build.py (needs 00_clean_base.jpg, layers/*.png). Output: sticker_vide
 import cv2, numpy as np, subprocess, imageio_ffmpeg
 from scipy.io import wavfile
 from make_sfx import make, SR
-VW,VH=1542,1920; FPS=30; TOTAL=10.5
-FIRST=2.0; INTERVAL=2.0      # 1st slap at 2 s, then every 2 s
+import os
+VW,VH=int(os.environ.get('VW',1542)),int(os.environ.get('VH',1920)); FPS=30; TOTAL=float(os.environ.get('TOTAL',10.5))
+FIRST=float(os.environ.get('FIRST',2.0)); INTERVAL=2.0      # 1st slap at FIRST s, then every 2 s
+PADH=int(os.environ.get('PADH',0)); OUT=os.environ.get('OUT','sticker_video_hd.mp4'); WITH_AUDIO=os.environ.get('NOAUDIO')!='1'
 APPROACH=0.45                # how long a sticker "flies in" before it lands
 PEEL=0.62                    # length of the peel part of the sound (ends exactly at landing)
 names=['1_fragile','2_handle','3_notdrop','4_donottouch']
@@ -45,13 +47,19 @@ def frame(t):
 # ---- audio ----
 y=make(PEEL); aud=np.zeros(int(TOTAL*SR)+len(y))
 for i in range(4):
-    s=int((FIRST+INTERVAL*i-PEEL)*SR); aud[s:s+len(y)]+=y*(0.95 if i%2==0 else 0.85)
+    s_=int((FIRST+INTERVAL*i-PEEL)*SR); aud[s_:s_+len(y)]+=y*(0.95 if i%2==0 else 0.85)
 aud=aud[:int(TOTAL*SR)]; aud=np.tanh(aud)*0.9
-wavfile.write('sfx/soundtrack.wav',SR,(aud*32767).astype(np.int16))
+wavfile.write('sfx/soundtrack.wav',SR,(aud*32767).astype(np.int16)) if WITH_AUDIO else None
 # ---- video ----
-ff=subprocess.Popen([imageio_ffmpeg.get_ffmpeg_exe(),'-y','-loglevel','error','-f','rawvideo','-pix_fmt','bgr24','-s',f'{VW}x{VH}','-r',str(FPS),'-i','-',
-  '-i','sfx/soundtrack.wav','-c:v','libx264','-profile:v','high','-pix_fmt','yuv420p','-crf','14','-preset','slow','-c:a','aac','-b:a','192k',
-  '-movflags','+faststart','-shortest','sticker_video_hd.mp4'],stdin=subprocess.PIPE)
+OH=PADH or VH
+cmd=[imageio_ffmpeg.get_ffmpeg_exe(),'-y','-loglevel','error','-f','rawvideo','-pix_fmt','bgr24','-s',f'{VW}x{OH}','-r',str(FPS),'-i','-']
+if WITH_AUDIO: cmd+=['-i','sfx/soundtrack.wav']
+cmd+=['-c:v','libx264','-profile:v','high','-pix_fmt','yuv420p','-crf','14','-preset','slow']
+cmd+=(['-c:a','aac','-b:a','192k','-shortest'] if WITH_AUDIO else ['-an'])+['-movflags','+faststart',OUT]
+ff=subprocess.Popen(cmd,stdin=subprocess.PIPE)
 for f in range(int(TOTAL*FPS)):
-    ff.stdin.write(np.clip(frame(f/FPS),0,255).astype(np.uint8).tobytes())
+    fr=np.clip(frame(f/FPS),0,255).astype(np.uint8)
+    if PADH:
+        c=np.zeros((PADH,VW,3),np.uint8); o=(PADH-VH)//2; c[o:o+VH]=fr; fr=c
+    ff.stdin.write(fr.tobytes())
 ff.stdin.close(); ff.wait()
