@@ -1,10 +1,10 @@
 """80s 'space' synth music (Jarre / Vangelis / Moroder flavour): analog arpeggio, lush detuned pads with chorus, pulsing bass,
-drum machine, echo lead, riser. D minor, 108 bpm, 18 bars (40 s) -> music/space80s.wav
-Structure: bars 1-3 pad+arp (float in) | 4-10 bass+drums build | 11-16 drums drop out (room for tape sounds), lead+arp | 17-18 pad ring-out."""
+drum machine, echo lead, riser. D minor, 108 bpm, 20 bars (~45 s) -> music/space80s.wav
+Structure: bars 1-3 pad+arp (float in) | 4-10 bass+drums build | 11-18 drums drop out (room for tape sounds), lead+arp | 19-20 pad ring-out."""
 import numpy as np, os
 from scipy.io import wavfile
 from scipy.signal import butter, sosfilt, fftconvolve, resample_poly
-SR=48000; BPM=108; beat=60/BPM; bar=4*beat; NB=18; DUR=NB*bar
+SR=48000; BPM=108; beat=60/BPM; bar=4*beat; NB=20; DUR=NB*bar+0.8
 rng=np.random.default_rng(80)
 N=int((DUR+5)*SR)
 def bus(): return np.zeros(N),np.zeros(N)

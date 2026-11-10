@@ -1,10 +1,10 @@
 """Final cut (1080x1920): intro (voice, enhanced) -> dissolve -> painting + stickers (tape sounds) -> fade -> signature on black. Music underneath.
-Prereqs: compressed_IMG_8491.mov, work/stickers_v.mp4 (build_video.py with VW=1080 VH=1346 PADH=1920 FIRST=3 TOTAL=11.5 NOAUDIO=1),
+Prereqs: compressed_IMG_8491.mov, work/stickers_v.mp4 (build_video.py with VW=1080 VH=1346 PADH=1920 FIRST=3 TOTAL=16.5 NOAUDIO=1),
 music/space80s.wav (make_music_space80s.py), clean_voice.py, uploads/IMG_8491 (online-video-cutter.com).mp4, sfx_options/*.wav, signature.png.  Output: final_video.mp4"""
 import cv2, numpy as np, subprocess, imageio_ffmpeg, sys
 from scipy.io import wavfile
 FF=imageio_ffmpeg.get_ffmpeg_exe(); SR=48000; FPS=30; W,H=1080,1920
-INTRO=32.9; XF1=1.5; STK=11.5; XF2=1.0; OUTRO=6.0
+INTRO=32.9; XF1=1.5; STK=16.5; XF2=1.0; OUTRO=6.0   # painting segment: 3 s clean, 4 stickers every 2 s, then ~6.5 s hold
 T_STK=INTRO-XF1; T_OUT=T_STK+STK-XF2; TOTAL=T_OUT+OUTRO
 import os
 REBUILD=os.environ.get('REBUILD')=='1' or not os.path.exists('work/final_silent.mp4')
@@ -25,7 +25,7 @@ if REBUILD:
     p.stdin.close(); p.wait()
     # ---------- video: intro + stickers + outro with dissolves ----------
     norm=f"fps={FPS},scale={W}:{H},setsar=1,format=yuv420p"
-    VF=("hqdn3d=2:2:3:3,colorchannelmixer=rr=1.02:bb=0.97,eq=brightness=0.04:contrast=1.1:saturation=1.12:gamma=1.07,unsharp=5:5:0.35")
+    VF=("hqdn3d=2:2:3:3,colorchannelmixer=rr=0.98:bb=1.06,eq=brightness=0.035:contrast=1.08:saturation=1.0:gamma=1.05,unsharp=5:5:0.35")
     fc=(f"[0:v]{VF},{norm}[a];[1:v]{norm}[b];[2:v]{norm}[c];"
         f"[a][b]xfade=transition=fade:duration={XF1}:offset={INTRO-XF1}[ab];"
         f"[ab][c]xfade=transition=fade:duration={XF2}:offset={INTRO-XF1+STK-XF2}[v]")
@@ -43,7 +43,8 @@ mix+=m*0.62
 def put(sig,t0,g=1.0):
     s=int(t0*SR); sig=sig if sig.ndim==1 else sig.mean(1); e=min(N,s+len(sig)); mix[s:e]+=(sig[:e-s]*g)[:,None]
 put(rd('work/voice.wav'),0,1.0)
-put(rd('sfx_options/transition_1_long_rip.wav'),INTRO-XF1,0.9)                # press lands as the dissolve ends
+TRANSITION_RIP=False                                                         # first tape sound removed on request
+if TRANSITION_RIP: put(rd('sfx_options/transition_1_long_rip.wav'),INTRO-XF1,0.9)
 A=rd('sfx_options/sticker_A_classic.wav')
 for i in range(4): put(A,T_STK+3.0+2.0*i-0.62,0.95 if i%2==0 else 0.85)       # same timing/sound as before
 wavfile.write('work/final_audio.wav',SR,(np.clip(mix,-1,1)*32767).astype(np.int16))
