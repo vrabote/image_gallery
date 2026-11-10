@@ -1,6 +1,6 @@
 """Final cut (1080x1920): intro (voice, enhanced) -> dissolve -> painting + stickers (tape sounds) -> fade -> signature on black. Music underneath.
 Prereqs: compressed_IMG_8491.mov, work/stickers_v.mp4 (build_video.py with VW=1080 VH=1346 PADH=1920 FIRST=3 TOTAL=16.5 NOAUDIO=1),
-music/space80s.wav (make_music_space80s.py), clean_voice.py, uploads/IMG_8491 (online-video-cutter.com).mp4, sfx_options/*.wav, signature.png.  Output: final_video.mp4"""
+music/space80s.wav (make_music_space80s.py), clean_voice.py, uploads/VID_20261110_235136505.mp4 (voice), fit_voice.py, uploads/IMG_8491 (online-video-cutter.com).mp4 (timing reference), sfx_options/*.wav, signature.png.  Output: final_video.mp4"""
 import cv2, numpy as np, subprocess, imageio_ffmpeg, sys
 from scipy.io import wavfile
 FF=imageio_ffmpeg.get_ffmpeg_exe(); SR=48000; FPS=30; W,H=1080,1920
@@ -33,7 +33,8 @@ if REBUILD:
       '-c:v','libx264','-crf','15','-preset','slow','-pix_fmt','yuv420p','work/final_silent.mp4'],check=True)
 
 # ---------- audio ----------
-subprocess.run([sys.executable,'clean_voice.py','../uploads/IMG_8491 (online-video-cutter.com).mp4','work/voice.wav'],check=True)   # clean voice, 0-7.6 s (uncompressed cut)
+subprocess.run([sys.executable,'clean_voice.py','../uploads/VID_20261110_235136505.mp4','work/voice_full.wav','60','0'],check=True)   # separately recorded voice -> denoise + EQ
+subprocess.run([sys.executable,'fit_voice.py','work/voice_full.wav','work/voice.wav'],check=True)                            # phrases fitted to the lip movements
 rd=lambda f:(lambda s,x:(x.astype(np.float32)/32768))(*wavfile.read(f))
 N=int(TOTAL*SR); mix=np.zeros((N,2),np.float32)
 MUSIC_START=7.7                                                      # music begins right after the spoken words
