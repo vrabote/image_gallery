@@ -21,10 +21,10 @@ FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 SERIF = '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'
 LANDINGS = [3.6, 5.6, 7.6, 9.6]
 CAPTIONS = [
-    ('Хрупкая? Да.', 'Fragile? Yes.'),
-    ('Осторожно? Да.', 'Be careful? Yes.'),
-    ('Не бросать? Да.', 'Do not drop? Yes.'),
-    ('Не трогать? Именно.', 'Don’t touch? Exactly.'),
+    ('Хрупкая? Да!', 'Fragile? Yes!'),
+    ('Осторожно? Да!', 'Be careful? Yes!'),
+    ('Не бросать? Да!', 'Do not drop? Yes!'),
+    ('Не трогать? Именно!', 'Don’t touch? Exactly!'),
 ]
 
 def read(path):
@@ -36,6 +36,20 @@ def resize(im, size):
 def text(im, words, y, size=42, color=(244, 236, 223), font=FONT):
     d = ImageDraw.Draw(im)
     d.text((W//2, y), words, font=ImageFont.truetype(font, size), fill=color, anchor='mt')
+
+def punch_text(im, lines, age, center_y):
+    """First visible on the impact frame; huge type settles in seven frames."""
+    if age < -1e-6:
+        return im
+    layer=Image.new('RGBA',(W,H),(0,0,0,0))
+    for words,y,size,color in lines:
+        text(layer,words,y,size,color)
+    q=float(np.clip(age/.24,0,1))
+    scale=1+3.2*(1-q)**3
+    mat=cv2.getRotationMatrix2D((W/2,center_y),0,scale)
+    pixels=cv2.warpAffine(np.array(layer),mat,(W,H),flags=cv2.INTER_LINEAR)
+    return Image.alpha_composite(im.convert('RGBA'),Image.fromarray(pixels)).convert('RGB')
+
 
 base = read(ROOT / '00_clean_base.jpg')
 # Original sticker positions refer to the original 2804 x 3493 extraction canvas.
@@ -50,7 +64,7 @@ for name, (x,y) in zip(['1_fragile', '2_handle', '3_notdrop', '4_donottouch'],
 
 # Clean gallery shot. Actual painting is pasted, not reinterpreted by an image model.
 room = resize(read(ROOT/'short_assets/interior.jpg'), (W,H))
-pw,ph,px,py = 506,630,287,597
+pw,ph,px,py = 506,630,287,490
 shadow = np.zeros((H,W),np.uint8)
 shadow[py+12:py+ph+12,px+12:px+pw+12]=75
 shadow=cv2.GaussianBlur(shadow,(0,0),15)
@@ -99,18 +113,20 @@ def frame(t):
         fr=np.full((H,W,3),(0,0,0),np.uint8)
         fr[AY:AY+AH,AX:AX+AW]=artwork(t)
         im=Image.fromarray(fr)
-        if t<3.32:
+        if t<LANDINGS[0]:
             return fr
-        idx=min(3,max(0,sum(t>=x for x in LANDINGS)-1))
+        idx=min(3,max(0,sum(t+1e-6>=x for x in LANDINGS)-1))
         if t<11.6:
             ru,en=CAPTIONS[idx]
-            text(im,ru,1430,70)
-            text(im,en,1545,58,(198,183,162))
+            im=punch_text(im,[(ru,1430,70,(244,236,223)),
+                              (en,1545,58,(216,186,146))],t-LANDINGS[idx],1510)
         else:
-            text(im,'Я не ваша посылка.',1395,64)
-            text(im,'Оставьте меня в покое.',1488,64)
-            text(im,'I’m not your package.',1610,54,(198,183,162))
-            text(im,'Leave me alone.',1692,54,(198,183,162))
+            im=punch_text(im,[
+                ('Я не ваша посылка!',1395,64,(244,236,223)),
+                ('Оставьте меня в покое!',1488,64,(244,236,223)),
+                ('I’m not your package!',1610,54,(216,186,146)),
+                ('Leave me alone!',1692,54,(216,186,146)),
+            ],t-11.6,1555)
         return np.array(im)
     im=Image.new('RGB',(W,H),(0,0,0))
     text(im,'Картина',430,52,(198,183,162))
@@ -152,6 +168,10 @@ def render():
     for land in LANDINGS:
         start=round((land-.62)*sr); end=min(n,start+len(sfx))
         mix[start:end]+=sfx[:end-start]*.8
+    # Final statement gets the same contact sound, without another peel.
+    press=sfx[round(.62*sr):]
+    start=round(11.6*sr); end=min(n,start+len(press))
+    mix[start:end]+=press[:end-start]*.8
     wavfile.write(WORK/'mix.wav',sr,(np.clip(mix,-1,1)*32767).astype(np.int16))
     subprocess.run([FF,'-y','-loglevel','error','-i',str(WORK/'silent.mp4'),'-i',str(WORK/'mix.wav'),
         '-c:v','copy','-af','loudnorm=I=-16:TP=-1.5:LRA=9','-c:a','aac','-b:a','192k',
