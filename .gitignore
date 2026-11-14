@@ -7,3 +7,8 @@ comments/*
 !comments/.gitkeep
 !comments/test.jpg.txt
 
+
+# Local video build environment and intermediates
+.venv/
+__pycache__/
+video_prep/short_work/
