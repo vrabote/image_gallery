@@ -1,6 +1,6 @@
 """Reproducible 19.5-second vertical short. Run: .venv/bin/python video_prep/build_short.py
 Original artwork and sticker pixels are preserved; generated photographic intro assets
-are chroma-keyed/composited, not generated video. No narration.
+are composited with a camera pull-back, not generated video. No narration.
 """
 from pathlib import Path
 import subprocess
@@ -57,16 +57,6 @@ shadow=cv2.GaussianBlur(shadow,(0,0),15)
 room=(room.astype(float)*(1-shadow[...,None]/255)).astype(np.uint8)
 room[py-3:py+ph+3,px-3:px+pw+3]=(91,73,52)
 room[py:py+ph,px:px+pw]=resize(base,(pw,ph))
-hand=resize(read(ROOT/'short_assets/hands.jpg'),(W,H)).astype(np.float32)
-# Soft chroma key with green spill suppression. RGB channels.
-r,g,b=cv2.split(hand)
-alpha=np.clip((np.maximum(r,b)-g+65)/65,0,1)
-hand[...,1]=np.minimum(g,np.maximum(r,b)+8)
-# Separate the opposing hands along the empty opening diagonal.
-yy,xx=np.mgrid[:H,:W]
-left=(yy > 0.73*xx+440).astype(np.float32)
-hand_parts=[alpha*left,alpha*(1-left)]
-
 # Close-up artwork centered above bilingual subtitles, with no crop.
 AW,AH,AX,AY=980,1221,50,108
 painting=resize(base,(AW,AH)).astype(np.float32)
@@ -93,23 +83,20 @@ def artwork(t):
 
 # Signature extracted from the real painting; not replaced by a typeset logo.
 sig=base[int(base.shape[0]*.90):,int(base.shape[1]*.025):int(base.shape[1]*.13)]
-sig=resize(sig,(176,210)).astype(float)
+sig=resize(sig,(420,501)).astype(float)
 sig_alpha=np.clip((150-np.min(sig,axis=2))/85,0,1)
 
 
 def frame(t):
     if t<3:
-        fr=room.astype(np.float32).copy()
-        q=np.clip((t-.65)/1.05,0,1)
+        # Begin on the actual painting, then pull back to reveal the room.
+        q=np.clip((t-.25)/2.25,0,1)
         q=q*q*(3-2*q)
-        for mask,dx,dy in [(hand_parts[0],-W*q,H*.45*q),(hand_parts[1],W*q,-H*.45*q)]:
-            mat=np.float32([[1,0,dx],[0,1,dy]])
-            a=cv2.warpAffine(mask,mat,(W,H))
-            rgb=cv2.warpAffine(hand,mat,(W,H))
-            fr=fr*(1-a[...,None])+rgb*a[...,None]
-        return np.clip(fr,0,255).astype(np.uint8)
+        scale=1.95-.95*q
+        mat=cv2.getRotationMatrix2D((px+pw/2,py+ph/2),0,scale)
+        return cv2.warpAffine(room,mat,(W,H),flags=cv2.INTER_CUBIC)
     if t<15.8:
-        fr=np.full((H,W,3),(24,25,25),np.uint8)
+        fr=np.full((H,W,3),(0,0,0),np.uint8)
         fr[AY:AY+AH,AX:AX+AW]=artwork(t)
         im=Image.fromarray(fr)
         if t<3.32:
@@ -117,24 +104,25 @@ def frame(t):
         idx=min(3,max(0,sum(t>=x for x in LANDINGS)-1))
         if t<11.6:
             ru,en=CAPTIONS[idx]
-            text(im,ru,1430,48)
-            text(im,en,1510,39,(198,183,162))
+            text(im,ru,1430,70)
+            text(im,en,1545,58,(198,183,162))
         else:
-            text(im,'Я не ваша посылка.',1410,45)
-            text(im,'Оставьте меня в покое.',1476,45)
-            text(im,'I’m not your package.',1576,37,(198,183,162))
-            text(im,'Leave me alone.',1635,37,(198,183,162))
+            text(im,'Я не ваша посылка.',1395,64)
+            text(im,'Оставьте меня в покое.',1488,64)
+            text(im,'I’m not your package.',1610,54,(198,183,162))
+            text(im,'Leave me alone.',1692,54,(198,183,162))
         return np.array(im)
-    im=Image.new('RGB',(W,H),(239,230,212))
-    text(im,'Картина',550,37,(99,86,69))
-    text(im,'“Leave me alone”',655,65,(39,37,33),SERIF)
-    text(im,'100×125 см, холст, масло',770,34,(99,86,69))
+    im=Image.new('RGB',(W,H),(0,0,0))
+    text(im,'Картина',430,52,(198,183,162))
+    text(im,'“Leave me alone”',550,86,(244,236,223),SERIF)
+    text(im,'100×125 см, холст, масло',705,48,(198,183,162))
     fr=np.array(im).astype(float)
-    q=np.clip((t-16.8)/1.0,0,1)
-    a=sig_alpha*(np.arange(176)[None,:]<176*q)
-    dest=fr[1000:1210,452:628]
-    fr[1000:1210,452:628]=dest*(1-a[...,None])+np.array([101,64,46])*a[...,None]
+    q=np.clip((t-16.35)/1.0,0,1)
+    a=sig_alpha*(np.arange(420)[None,:]<420*q)
+    dest=fr[960:1461,330:750]
+    fr[960:1461,330:750]=dest*(1-a[...,None])+np.array([244,236,223])*a[...,None]
     return fr.astype(np.uint8)
+
 
 
 def render():
