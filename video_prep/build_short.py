@@ -159,11 +159,9 @@ sig=resize(sig,(420,501)).astype(float)
 sig_alpha=np.clip((150-np.min(sig,axis=2))/85,0,1)
 
 
-# High-resolution, locked wall compositions: artwork and wall always share one camera.
-# Float crop boxes with Lanczos avoid warpAffine's quantized subpixel shimmer.
+# Locked high-resolution wall compositions, rebuilt without the thin dark outline.
+# The old 3px frame and its high-contrast edge produced visible crawling on zoom.
 CAMERA_SS=2
-room_hi=resize(room,(W*CAMERA_SS,H*CAMERA_SS))
-room_stickered_hi=room_hi.copy()
 hi_size=(pw*CAMERA_SS,ph*CAMERA_SS)
 clean_hi=resize(base,hi_size)
 stuck_hi=clean_hi.astype(np.float32)
@@ -173,8 +171,26 @@ for layer in full:
     stuck_hi=stuck_hi*(1-alpha)+rgba[...,:3]*alpha
 ys=slice(py*CAMERA_SS,(py+ph)*CAMERA_SS)
 xs=slice(px*CAMERA_SS,(px+pw)*CAMERA_SS)
-room_hi[ys,xs]=clean_hi
-room_stickered_hi[ys,xs]=np.clip(stuck_hi,0,255).astype(np.uint8)
+wall_hi=resize(read(ROOT/'short_assets/interior.jpg'),(W*CAMERA_SS,H*CAMERA_SS)).astype(np.float32)
+shadow_hi=np.zeros((H*CAMERA_SS,W*CAMERA_SS),np.float32)
+shadow_hi[(py+7)*CAMERA_SS:(py+ph+7)*CAMERA_SS,
+          (px+7)*CAMERA_SS:(px+pw+7)*CAMERA_SS]=.19
+shadow_hi=cv2.GaussianBlur(shadow_hi,(0,0),10*CAMERA_SS)
+wall_hi*=1-shadow_hi[...,None]
+# A continuous ~1.4 output-pixel edge transition instead of a razor-thin frame.
+ey,ex=np.mgrid[:hi_size[1],:hi_size[0]]
+distance=np.minimum.reduce([ex+.5,ey+.5,hi_size[0]-.5-ex,hi_size[1]-.5-ey])
+edge=np.clip(distance/(1.4*CAMERA_SS),0,1)
+edge=(edge*edge*(3-2*edge))[...,None]
+
+def mount_canvas(pixels):
+    scene=wall_hi.copy()
+    scene[ys,xs]=scene[ys,xs]*(1-edge)+pixels*edge
+    # Low-pass the source once: suppress fine-edge aliasing without frame-to-frame changes.
+    return np.clip(cv2.GaussianBlur(scene,(0,0),.65*CAMERA_SS),0,255).astype(np.uint8)
+
+room_hi=mount_canvas(clean_hi)
+room_stickered_hi=mount_canvas(stuck_hi)
 
 
 def camera_view(scene,scale):
@@ -188,7 +204,7 @@ def camera_view(scene,scale):
     high=Image.fromarray(scene).transform(
         (W*CAMERA_SS,H*CAMERA_SS),Image.Transform.AFFINE,
         (inv,0,left,0,inv,top),resample=Image.Resampling.BICUBIC)
-    return np.array(high.resize((W,H),Image.Resampling.LANCZOS))
+    return np.array(high.resize((W,H),Image.Resampling.BOX))
 
 
 def sun_glint(t):
@@ -264,7 +280,7 @@ def frame(t):
 
 def render():
     p=subprocess.Popen([FF,'-y','-loglevel','error','-f','rawvideo','-pix_fmt','rgb24',
-        '-s',f'{W}x{H}','-r',str(FPS),'-i','-','-an','-c:v','libx264','-crf','18',
+        '-s',f'{W}x{H}','-r',str(FPS),'-i','-','-an','-c:v','libx264','-crf','16',
         '-preset','fast','-pix_fmt','yuv420p',str(WORK/'silent.mp4')],stdin=subprocess.PIPE)
     try:
         for f in range(round(DURATION*FPS)):
