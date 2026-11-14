@@ -30,6 +30,7 @@ FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 SERIF = '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'
 LANDINGS = [3.6, 5.6, 7.6, 9.6]
 QUESTION_LEAD = .45
+ANSWER_DELAY = .30
 CAPTIONS = [
     ('Хрупкая?', 'Да!', 'Fragile?', 'YES!'),
     ('Осторожно?', 'Да!', 'Handle with care?', 'YES!'),
@@ -63,7 +64,7 @@ def punch_text(im, lines, age, center_y):
 
 
 def question_answer(im, caption, age):
-    """The question flies in first; the answer is instantly full-size on contact."""
+    """The question flies in first; the full-size answer follows contact after a pause."""
     rq,ra,eq,ea=caption
     for question,answer,y,size,color in [
         (rq,ra,1430,70,(244,236,223)),
@@ -83,8 +84,8 @@ def question_answer(im, caption, age):
         mat=cv2.getRotationMatrix2D((x+qw/2,y+size/2),0,scale)
         pixels=cv2.warpAffine(np.array(layer),mat,(W,H),flags=cv2.INTER_LINEAR)
         im=Image.alpha_composite(im.convert('RGBA'),Image.fromarray(pixels)).convert('RGB')
-        if age >= -1e-6:
-            # No scale, fade or travel: the complete answer appears on this frame.
+        if age >= ANSWER_DELAY-1e-6:
+            # No scale, fade or travel: the complete answer appears after the deliberate pause.
             ImageDraw.Draw(im).text((x+qw+gap,y),answer,font=bold,fill=color,anchor='lt')
     return im
 
