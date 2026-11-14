@@ -1,4 +1,4 @@
-"""Reproducible 19.5-second vertical short. Run: .venv/bin/python video_prep/build_short.py
+"""Reproducible 21.5-second vertical short. Run: .venv/bin/python video_prep/build_short.py
 Original artwork and sticker pixels are preserved; generated photographic intro assets
 are composited with a camera pull-back, not generated video. No narration.
 """
@@ -12,7 +12,11 @@ import imageio_ffmpeg
 
 ROOT = Path(__file__).resolve().parent
 W, H, FPS = 1080, 1920, 30
-DURATION = 19.5
+DURATION = 21.5
+RETURN_TO_WALL = 15.8
+OUTRO_START = RETURN_TO_WALL + 2.0
+# Existing riser at source 20.7–23.7 s resolves on the cut at timeline 3 s.
+MUSIC_IN = 20.7
 OUT = ROOT / 'short_leave_me_alone.mp4'
 WORK = ROOT / 'short_work'
 WORK.mkdir(exist_ok=True)
@@ -95,6 +99,10 @@ def artwork(t):
         p=p*(1-a[...,None])+rgb*a[...,None]
     return p.astype(np.uint8)
 
+# Return to the same room with all four original stickers preserved.
+room_stickered=room.copy()
+room_stickered[py:py+ph,px:px+pw]=resize(artwork(15.8),(pw,ph))
+
 # Signature extracted from the real painting; not replaced by a typeset logo.
 sig=base[int(base.shape[0]*.90):,int(base.shape[1]*.025):int(base.shape[1]*.13)]
 sig=resize(sig,(420,501)).astype(float)
@@ -109,7 +117,7 @@ def frame(t):
         scale=1.95-.95*q
         mat=cv2.getRotationMatrix2D((px+pw/2,py+ph/2),0,scale)
         return cv2.warpAffine(room,mat,(W,H),flags=cv2.INTER_CUBIC)
-    if t<15.8:
+    if t<RETURN_TO_WALL:
         fr=np.full((H,W,3),(0,0,0),np.uint8)
         fr[AY:AY+AH,AX:AX+AW]=artwork(t)
         im=Image.fromarray(fr)
@@ -128,12 +136,17 @@ def frame(t):
                 ('Leave me alone!',1692,54,(216,186,146)),
             ],t-11.6,1555)
         return np.array(im)
+    if t<OUTRO_START:
+        # Two-second breathing shot, no captions, tiny camera push toward the artwork.
+        q=np.clip((t-RETURN_TO_WALL)/2.0,0,1)
+        mat=cv2.getRotationMatrix2D((px+pw/2,py+ph/2),0,1+.025*q)
+        return cv2.warpAffine(room_stickered,mat,(W,H),flags=cv2.INTER_CUBIC)
     im=Image.new('RGB',(W,H),(0,0,0))
     text(im,'Картина',430,52,(198,183,162))
     text(im,'“Leave me alone”',550,86,(244,236,223),SERIF)
     text(im,'100×125 см, холст, масло',705,48,(198,183,162))
     fr=np.array(im).astype(float)
-    q=np.clip((t-16.35)/1.0,0,1)
+    q=np.clip((t-OUTRO_START-.55)/1.0,0,1)
     a=sig_alpha*(np.arange(420)[None,:]<420*q)
     dest=fr[960:1461,330:750]
     fr[960:1461,330:750]=dest*(1-a[...,None])+np.array([244,236,223])*a[...,None]
@@ -159,11 +172,24 @@ def render():
         if x.ndim==1: x=np.repeat(x[:,None],2,axis=1)
         return x
     n=round(DURATION*sr)
-    music=audio(ROOT/'music/space80s.wav')
+    music=audio(ROOT/'music/space80s.wav')[round(MUSIC_IN*sr):]
+    if len(music)<n: raise ValueError('Selected music passage is too short')
     mix=np.zeros((n,2),np.float32)
     mix[:min(n,len(music))]=music[:n]*.52
     tt=np.arange(n)/sr
     mix*=np.minimum(np.clip(tt/.25,0,1),np.clip((DURATION-tt)/1.3,0,1))[:,None]
+    # A soft low-frequency musical accent reinforces the exact picture cut.
+    # The original track's three-second riser already leads into this sample.
+    impact_t=np.arange(round(.65*sr))/sr
+    freq=46+55*np.exp(-impact_t/.025)
+    phase=2*np.pi*np.cumsum(freq)/sr
+    impact=np.sin(phase)*np.exp(-impact_t/.16)*np.minimum(1,impact_t/.002)*.23
+    start=round(3.0*sr)
+    mix[start:start+len(impact)]+=impact[:,None]
+    # Leave room around the tape contacts so the music never masks the sync.
+    for land in LANDINGS+[11.6]:
+        duck=1-.24*np.exp(-((tt-land)/.10)**2)
+        mix*=duck[:,None]
     sfx=audio(ROOT/'sfx_options/sticker_A_classic.wav')
     for land in LANDINGS:
         start=round((land-.62)*sr); end=min(n,start+len(sfx))
