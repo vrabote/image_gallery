@@ -63,7 +63,7 @@ def punch_text(im, lines, age, center_y):
 
 
 def question_answer(im, caption, age):
-    """Question precedes contact by .45s; only the answer punches on contact."""
+    """The question flies in first; the answer is instantly full-size on contact."""
     rq,ra,eq,ea=caption
     for question,answer,y,size,color in [
         (rq,ra,1430,70,(244,236,223)),
@@ -76,17 +76,16 @@ def question_answer(im, caption, age):
         aw=d.textlength(answer,font=bold)
         gap=size*.34
         x=(W-qw-gap-aw)/2
-        d.text((x,y),question,font=regular,fill=color,anchor='lt')
-        if age < -1e-6:
-            continue
-        cx=x+qw+gap+aw/2
         layer=Image.new('RGBA',(W,H),(0,0,0,0))
-        ImageDraw.Draw(layer).text((cx,y),answer,font=bold,fill=color,anchor='mt')
-        q=float(np.clip(age/.22,0,1))
+        ImageDraw.Draw(layer).text((x,y),question,font=regular,fill=color,anchor='lt')
+        q=float(np.clip((age+QUESTION_LEAD)/.24,0,1))
         scale=1+3.2*(1-q)**3
-        mat=cv2.getRotationMatrix2D((cx,y+size/2),0,scale)
+        mat=cv2.getRotationMatrix2D((x+qw/2,y+size/2),0,scale)
         pixels=cv2.warpAffine(np.array(layer),mat,(W,H),flags=cv2.INTER_LINEAR)
         im=Image.alpha_composite(im.convert('RGBA'),Image.fromarray(pixels)).convert('RGB')
+        if age >= -1e-6:
+            # No scale, fade or travel: the complete answer appears on this frame.
+            ImageDraw.Draw(im).text((x+qw+gap,y),answer,font=bold,fill=color,anchor='lt')
     return im
 
 
@@ -160,6 +159,25 @@ sig=resize(sig,(420,501)).astype(float)
 sig_alpha=np.clip((150-np.min(sig,axis=2))/85,0,1)
 
 
+def sun_glint(t):
+    """One fast warm specular sweep, restricted to the actual canvas surface."""
+    if not .033 <= t <= .7:
+        return room
+    q=(t-.033)/(.7-.033)
+    yy,xx=np.mgrid[:ph,:pw]
+    diagonal=xx+.36*(yy-ph/2)
+    edge=-pw*.45+q*pw*1.9
+    streak=np.exp(-.5*((diagonal-edge)/25)**2)
+    bloom=np.exp(-.5*((diagonal-edge)/95)**2)
+    opacity=(.68*streak+.15*bloom)*np.sin(np.pi*q)**.5
+    fr=room.copy()
+    patch=fr[py:py+ph,px:px+pw].astype(np.float32)/255
+    light=np.array([1.0,.91,.68])[None,None,:]*opacity[...,None]
+    # Screen blend brightens as reflected sunshine, without painting over detail.
+    fr[py:py+ph,px:px+pw]=np.clip((1-(1-patch)*(1-light))*255,0,255).astype(np.uint8)
+    return fr
+
+
 def frame(t):
     if t<3:
         # Begin on the actual painting, then pull back to reveal the room.
@@ -167,7 +185,7 @@ def frame(t):
         q=q*q*(3-2*q)
         scale=1.95-.95*q
         mat=cv2.getRotationMatrix2D((px+pw/2,py+ph/2),0,scale)
-        return cv2.warpAffine(room,mat,(W,H),flags=cv2.INTER_CUBIC)
+        return cv2.warpAffine(sun_glint(t),mat,(W,H),flags=cv2.INTER_CUBIC)
     if t<RETURN_TO_WALL:
         fr=np.full((H,W,3),(0,0,0),np.uint8)
         fr[AY:AY+AH,AX:AX+AW]=artwork(t)
