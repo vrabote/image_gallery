@@ -159,33 +159,56 @@ sig=resize(sig,(420,501)).astype(float)
 sig_alpha=np.clip((150-np.min(sig,axis=2))/85,0,1)
 
 
+# High-resolution, locked wall compositions: artwork and wall always share one camera.
+# Float crop boxes with Lanczos avoid warpAffine's quantized subpixel shimmer.
+CAMERA_SS=2
+room_hi=resize(room,(W*CAMERA_SS,H*CAMERA_SS))
+room_stickered_hi=room_hi.copy()
+hi_size=(pw*CAMERA_SS,ph*CAMERA_SS)
+clean_hi=resize(base,hi_size)
+stuck_hi=clean_hi.astype(np.float32)
+for layer in full:
+    rgba=resize(layer,hi_size).astype(np.float32)
+    alpha=rgba[...,3:4]/255
+    stuck_hi=stuck_hi*(1-alpha)+rgba[...,:3]*alpha
+ys=slice(py*CAMERA_SS,(py+ph)*CAMERA_SS)
+xs=slice(px*CAMERA_SS,(px+pw)*CAMERA_SS)
+room_hi[ys,xs]=clean_hi
+room_stickered_hi[ys,xs]=np.clip(stuck_hi,0,255).astype(np.uint8)
+
+
+def camera_view(scene,scale):
+    cx,cy=px+pw/2,py+ph/2
+    left=(cx-cx/scale)*CAMERA_SS
+    top=(cy-cy/scale)*CAMERA_SS
+    box=(left,top,left+W*CAMERA_SS/scale,top+H*CAMERA_SS/scale)
+    return np.array(Image.fromarray(scene).resize((W,H),Image.Resampling.LANCZOS,box=box))
+
+
 def sun_glint(t):
-    """One fast warm specular sweep, restricted to the actual canvas surface."""
-    if not .033 <= t <= .7:
-        return room
-    q=(t-.033)/(.7-.033)
-    yy,xx=np.mgrid[:ph,:pw]
-    diagonal=xx+.36*(yy-ph/2)
-    edge=-pw*.45+q*pw*1.9
-    streak=np.exp(-.5*((diagonal-edge)/25)**2)
-    bloom=np.exp(-.5*((diagonal-edge)/95)**2)
-    opacity=(.68*streak+.15*bloom)*np.sin(np.pi*q)**.5
-    fr=room.copy()
-    patch=fr[py:py+ph,px:px+pw].astype(np.float32)/255
-    light=np.array([1.0,.91,.68])[None,None,:]*opacity[...,None]
-    # Screen blend brightens as reflected sunshine, without painting over detail.
-    fr[py:py+ph,px:px+pw]=np.clip((1-(1-patch)*(1-light))*255,0,255).astype(np.uint8)
+    """Soft oval sunlight reflection, not a travelling bright stripe."""
+    if not .06 <= t <= .96:
+        return room_hi
+    q=(t-.06)/.9
+    hh,ww=ph*CAMERA_SS,pw*CAMERA_SS
+    yy,xx=np.mgrid[:hh,:ww]
+    glow=np.exp(-.5*(((xx-ww*.35)/(ww*.36))**2+((yy-hh*.24)/(hh*.29))**2))
+    # Smooth single glimmer; no spatial sweep or repeated flashing.
+    opacity=.30*glow*np.sin(np.pi*q)**2
+    fr=room_hi.copy()
+    patch=fr[ys,xs].astype(np.float32)/255
+    light=np.array([1.0,.91,.72])[None,None,:]*opacity[...,None]
+    fr[ys,xs]=np.clip((1-(1-patch)*(1-light))*255,0,255).astype(np.uint8)
     return fr
 
 
 def frame(t):
     if t<3:
         # Begin on the actual painting, then pull back to reveal the room.
-        q=np.clip((t-.25)/2.25,0,1)
+        q=np.clip(t/3.0,0,1)
         q=q*q*(3-2*q)
-        scale=1.95-.95*q
-        mat=cv2.getRotationMatrix2D((px+pw/2,py+ph/2),0,scale)
-        return cv2.warpAffine(sun_glint(t),mat,(W,H),flags=cv2.INTER_CUBIC)
+        scale=1.65-.65*q
+        return camera_view(sun_glint(t),scale)
     if t<RETURN_TO_WALL:
         fr=np.full((H,W,3),(0,0,0),np.uint8)
         fr[AY:AY+AH,AX:AX+AW]=artwork(t)
@@ -210,8 +233,7 @@ def frame(t):
         q=np.clip((t-RETURN_TO_WALL)/WALL_HOLD,0,1)
         q=q*q*(3-2*q)
         center=(px+pw/2,py+ph/2)
-        mat=cv2.getRotationMatrix2D(center,0,1+.12*q)
-        fr=cv2.warpAffine(room_stickered,mat,(W,H),flags=cv2.INTER_CUBIC)
+        fr=camera_view(room_stickered_hi,1+.08*q)
         if t>=RETURN_TO_WALL+WALL_HOLD:
             progress=np.clip((t-RETURN_TO_WALL-WALL_HOLD)/(IRIS_DURATION-1/FPS),0,1)
             progress=progress*progress*(3-2*progress)
@@ -268,7 +290,7 @@ def render():
         start=round(accent*sr)
         mix[start:start+len(impact)]+=impact[:,None]*gain
     # Leave room around the tape contacts so the music never masks the sync.
-    for land in LANDINGS+[11.6,SECOND_STATEMENT]:
+    for land in LANDINGS:
         duck=1-.24*np.exp(-((tt-land)/.10)**2)
         mix*=duck[:,None]
     original=audio(ROOT/'sfx_options/sticker_A_classic.wav')
@@ -278,10 +300,6 @@ def render():
     for land in LANDINGS:
         start=round((land-.62)*sr); end=min(n,start+len(sfx))
         mix[start:end]+=sfx[:end-start]*.8
-    # Final statement gets the same contact sound, without another peel.
-    for statement in [11.6,SECOND_STATEMENT]:
-        start=round(statement*sr); end=min(n,start+len(press))
-        mix[start:end]+=press[:end-start]*.8
     wavfile.write(WORK/'mix.wav',sr,(np.clip(mix,-1,1)*32767).astype(np.int16))
     subprocess.run([FF,'-y','-loglevel','error','-i',str(WORK/'silent.mp4'),'-i',str(WORK/'mix.wav'),
         '-c:v','copy','-af','loudnorm=I=-16:TP=-1.5:LRA=9','-c:a','aac','-b:a','192k',
