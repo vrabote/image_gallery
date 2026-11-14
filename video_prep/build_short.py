@@ -12,7 +12,7 @@ from scipy.signal import resample_poly, butter, sosfilt
 import imageio_ffmpeg
 
 ROOT = Path(__file__).resolve().parent
-W, H, FPS = 1080, 1920, 30
+W, H, FPS = 1080, 1920, 60
 DURATION = 24.3
 RETURN_TO_WALL = 15.8
 WALL_HOLD = 4.0
@@ -178,11 +178,17 @@ room_stickered_hi[ys,xs]=np.clip(stuck_hi,0,255).astype(np.uint8)
 
 
 def camera_view(scene,scale):
+    # Fixed-kernel continuous affine sampling, then a fixed 2:1 downsample.
+    # Unlike resize(box=...), the filter footprint never changes with the zoom.
+    # Both wall and canvas are sampled once from the same locked source image.
     cx,cy=px+pw/2,py+ph/2
-    left=(cx-cx/scale)*CAMERA_SS
-    top=(cy-cy/scale)*CAMERA_SS
-    box=(left,top,left+W*CAMERA_SS/scale,top+H*CAMERA_SS/scale)
-    return np.array(Image.fromarray(scene).resize((W,H),Image.Resampling.LANCZOS,box=box))
+    inv=1.0/float(scale)
+    left=cx*(1-inv)*CAMERA_SS
+    top=cy*(1-inv)*CAMERA_SS
+    high=Image.fromarray(scene).transform(
+        (W*CAMERA_SS,H*CAMERA_SS),Image.Transform.AFFINE,
+        (inv,0,left,0,inv,top),resample=Image.Resampling.BICUBIC)
+    return np.array(high.resize((W,H),Image.Resampling.LANCZOS))
 
 
 def sun_glint(t):
