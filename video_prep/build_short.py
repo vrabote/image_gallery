@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from scipy.io import wavfile
-from scipy.signal import resample_poly
+from scipy.signal import resample_poly, butter, sosfilt
 import imageio_ffmpeg
 
 ROOT = Path(__file__).resolve().parent
@@ -29,12 +29,14 @@ FF = imageio_ffmpeg.get_ffmpeg_exe()
 FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 SERIF = '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'
 LANDINGS = [3.6, 5.6, 7.6, 9.6]
+QUESTION_LEAD = .45
 CAPTIONS = [
-    ('Хрупкая? Да!', 'Fragile? Yes!'),
-    ('Осторожно? Да!', 'Be careful? Yes!'),
-    ('Не бросать? Да!', 'Do not drop? Yes!'),
-    ('Не трогать? Именно!', 'Don’t touch? Exactly!'),
+    ('Хрупкая?', 'Да!', 'Fragile?', 'YES!'),
+    ('Осторожно?', 'Да!', 'Handle with care?', 'YES!'),
+    ('Не бросать?', 'Да!', 'Don’t give up?', 'YES!'),
+    ('Не трогать?', 'Именно!', 'Don’t touch?', 'Exactly!'),
 ]
+
 
 def read(path):
     return np.array(Image.open(path).convert('RGB'))
@@ -58,6 +60,50 @@ def punch_text(im, lines, age, center_y):
     mat=cv2.getRotationMatrix2D((W/2,center_y),0,scale)
     pixels=cv2.warpAffine(np.array(layer),mat,(W,H),flags=cv2.INTER_LINEAR)
     return Image.alpha_composite(im.convert('RGBA'),Image.fromarray(pixels)).convert('RGB')
+
+
+def question_answer(im, caption, age):
+    """Question precedes contact by .45s; only the answer punches on contact."""
+    rq,ra,eq,ea=caption
+    for question,answer,y,size,color in [
+        (rq,ra,1430,70,(244,236,223)),
+        (eq,ea,1545,58,(216,186,146)),
+    ]:
+        regular=ImageFont.truetype(FONT,size)
+        bold=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',size)
+        d=ImageDraw.Draw(im)
+        qw=d.textlength(question,font=regular)
+        aw=d.textlength(answer,font=bold)
+        gap=size*.34
+        x=(W-qw-gap-aw)/2
+        d.text((x,y),question,font=regular,fill=color,anchor='lt')
+        if age < -1e-6:
+            continue
+        cx=x+qw+gap+aw/2
+        layer=Image.new('RGBA',(W,H),(0,0,0,0))
+        ImageDraw.Draw(layer).text((cx,y),answer,font=bold,fill=color,anchor='mt')
+        q=float(np.clip(age/.22,0,1))
+        scale=1+3.2*(1-q)**3
+        mat=cv2.getRotationMatrix2D((cx,y+size/2),0,scale)
+        pixels=cv2.warpAffine(np.array(layer),mat,(W,H),flags=cv2.INTER_LINEAR)
+        im=Image.alpha_composite(im.convert('RGBA'),Image.fromarray(pixels)).convert('RGB')
+    return im
+
+
+def make_heavy_press(sr):
+    """Dry close-up tape slap: low palm body, crack and short paper tail."""
+    rng=np.random.default_rng(271)
+    t=np.arange(round(.34*sr))/sr
+    noise=rng.standard_normal(len(t))
+    crack=sosfilt(butter(3,[900,8500],btype='bandpass',fs=sr,output='sos'),noise)
+    paper=sosfilt(butter(2,[1700,6200],btype='bandpass',fs=sr,output='sos'),rng.standard_normal(len(t)))
+    phase=2*np.pi*np.cumsum(66+95*np.exp(-t/.012))/sr
+    body=np.sin(phase)*np.exp(-t/.061)
+    punch=(body*.95+crack*np.exp(-t/.009)*.85+paper*np.exp(-t/.042)*.3)
+    punch*=np.minimum(1,t/.0007)*np.clip((.34-t)/.025,0,1)
+    punch=np.tanh(punch*1.45)
+    punch*=.92/np.max(np.abs(punch))
+    return np.repeat(punch[:,None],2,axis=1).astype(np.float32)
 
 
 base = read(ROOT / '00_clean_base.jpg')
@@ -126,13 +172,11 @@ def frame(t):
         fr=np.full((H,W,3),(0,0,0),np.uint8)
         fr[AY:AY+AH,AX:AX+AW]=artwork(t)
         im=Image.fromarray(fr)
-        if t<LANDINGS[0]:
+        if t<LANDINGS[0]-QUESTION_LEAD:
             return fr
-        idx=min(3,max(0,sum(t+1e-6>=x for x in LANDINGS)-1))
+        idx=min(3,max(0,sum(t+QUESTION_LEAD+1e-6>=x for x in LANDINGS)-1))
         if t<11.6:
-            ru,en=CAPTIONS[idx]
-            im=punch_text(im,[(ru,1430,70,(244,236,223)),
-                              (en,1545,58,(216,186,146))],t-LANDINGS[idx],1510)
+            im=question_answer(im,CAPTIONS[idx],t-LANDINGS[idx])
         else:
             if t<SECOND_STATEMENT:
                 ru,en,start='Я не ваша посылка!','I’m not your package!',11.6
@@ -209,12 +253,14 @@ def render():
     for land in LANDINGS+[11.6,SECOND_STATEMENT]:
         duck=1-.24*np.exp(-((tt-land)/.10)**2)
         mix*=duck[:,None]
-    sfx=audio(ROOT/'sfx_options/sticker_A_classic.wav')
+    original=audio(ROOT/'sfx_options/sticker_A_classic.wav')
+    press=make_heavy_press(sr)
+    sfx=np.concatenate([original[:round(.62*sr)]*.75,press],axis=0)
+    wavfile.write(WORK/'heavy_tape_press.wav',sr,(press*32767).astype(np.int16))
     for land in LANDINGS:
         start=round((land-.62)*sr); end=min(n,start+len(sfx))
         mix[start:end]+=sfx[:end-start]*.8
     # Final statement gets the same contact sound, without another peel.
-    press=sfx[round(.62*sr):]
     for statement in [11.6,SECOND_STATEMENT]:
         start=round(statement*sr); end=min(n,start+len(press))
         mix[start:end]+=press[:end-start]*.8
