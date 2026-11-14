@@ -1,4 +1,4 @@
-"""Reproducible 21.5-second vertical short. Run: .venv/bin/python video_prep/build_short.py
+"""Reproducible 24.3-second vertical short. Run: .venv/bin/python video_prep/build_short.py
 Original artwork and sticker pixels are preserved; generated photographic intro assets
 are composited with a camera pull-back, not generated video. No narration.
 """
@@ -8,15 +8,20 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from scipy.io import wavfile
+from scipy.signal import resample_poly
 import imageio_ffmpeg
 
 ROOT = Path(__file__).resolve().parent
 W, H, FPS = 1080, 1920, 30
-DURATION = 21.5
+DURATION = 24.3
 RETURN_TO_WALL = 15.8
-OUTRO_START = RETURN_TO_WALL + 2.0
-# Existing riser at source 20.7–23.7 s resolves on the cut at timeline 3 s.
-MUSIC_IN = 20.7
+WALL_HOLD = 4.0
+IRIS_DURATION = .8
+OUTRO_START = RETURN_TO_WALL + WALL_HOLD + IRIS_DURATION
+# Bar 7 downbeat: first lead note plus full rhythm. 108 -> 120 BPM
+# makes the plan change at 3 s land exactly six beats after the opening.
+MUSIC_IN = 6 * 4 * 60 / 108
+SECOND_STATEMENT = 13.7
 OUT = ROOT / 'short_leave_me_alone.mp4'
 WORK = ROOT / 'short_work'
 WORK.mkdir(exist_ok=True)
@@ -129,18 +134,31 @@ def frame(t):
             im=punch_text(im,[(ru,1430,70,(244,236,223)),
                               (en,1545,58,(216,186,146))],t-LANDINGS[idx],1510)
         else:
+            if t<SECOND_STATEMENT:
+                ru,en,start='Я не ваша посылка!','I’m not your package!',11.6
+            else:
+                ru,en,start='Оставьте меня в покое!','Leave me alone!',SECOND_STATEMENT
             im=punch_text(im,[
-                ('Я не ваша посылка!',1395,64,(244,236,223)),
-                ('Оставьте меня в покое!',1488,64,(244,236,223)),
-                ('I’m not your package!',1610,54,(216,186,146)),
-                ('Leave me alone!',1692,54,(216,186,146)),
-            ],t-11.6,1555)
+                (ru,1430,70,(244,236,223)),
+                (en,1545,58,(216,186,146)),
+            ],t-start,1510)
         return np.array(im)
     if t<OUTRO_START:
-        # Two-second breathing shot, no captions, tiny camera push toward the artwork.
-        q=np.clip((t-RETURN_TO_WALL)/2.0,0,1)
-        mat=cv2.getRotationMatrix2D((px+pw/2,py+ph/2),0,1+.025*q)
-        return cv2.warpAffine(room_stickered,mat,(W,H),flags=cv2.INTER_CUBIC)
+        # Four-second push-in, followed by a circular iris closing on the painting.
+        q=np.clip((t-RETURN_TO_WALL)/WALL_HOLD,0,1)
+        q=q*q*(3-2*q)
+        center=(px+pw/2,py+ph/2)
+        mat=cv2.getRotationMatrix2D(center,0,1+.12*q)
+        fr=cv2.warpAffine(room_stickered,mat,(W,H),flags=cv2.INTER_CUBIC)
+        if t>=RETURN_TO_WALL+WALL_HOLD:
+            progress=np.clip((t-RETURN_TO_WALL-WALL_HOLD)/(IRIS_DURATION-1/FPS),0,1)
+            progress=progress*progress*(3-2*progress)
+            yy,xx=np.ogrid[:H,:W]
+            dist=np.sqrt((xx-center[0])**2+(yy-center[1])**2)
+            radius=np.hypot(max(center[0],W-center[0]),max(center[1],H-center[1]))*(1-progress)
+            mask=np.clip((radius-dist)/3,0,1)
+            fr=(fr*mask[...,None]).astype(np.uint8)
+        return fr
     im=Image.new('RGB',(W,H),(0,0,0))
     text(im,'Картина',430,52,(198,183,162))
     text(im,'“Leave me alone”',550,86,(244,236,223),SERIF)
@@ -173,21 +191,22 @@ def render():
         return x
     n=round(DURATION*sr)
     music=audio(ROOT/'music/space80s.wav')[round(MUSIC_IN*sr):]
+    music=resample_poly(music,9,10,axis=0)
     if len(music)<n: raise ValueError('Selected music passage is too short')
     mix=np.zeros((n,2),np.float32)
     mix[:min(n,len(music))]=music[:n]*.52
     tt=np.arange(n)/sr
-    mix*=np.minimum(np.clip(tt/.25,0,1),np.clip((DURATION-tt)/1.3,0,1))[:,None]
-    # A soft low-frequency musical accent reinforces the exact picture cut.
-    # The original track's three-second riser already leads into this sample.
+    mix*=np.minimum(np.clip(tt/.003,0,1),np.clip((DURATION-tt)/1.3,0,1))[:,None]
+    # Strong downbeat opens immediately; another bass accent lands on the six-beat cut.
     impact_t=np.arange(round(.65*sr))/sr
     freq=46+55*np.exp(-impact_t/.025)
     phase=2*np.pi*np.cumsum(freq)/sr
     impact=np.sin(phase)*np.exp(-impact_t/.16)*np.minimum(1,impact_t/.002)*.23
-    start=round(3.0*sr)
-    mix[start:start+len(impact)]+=impact[:,None]
+    for accent,gain in [(0,.65),(3.0,1.0)]:
+        start=round(accent*sr)
+        mix[start:start+len(impact)]+=impact[:,None]*gain
     # Leave room around the tape contacts so the music never masks the sync.
-    for land in LANDINGS+[11.6]:
+    for land in LANDINGS+[11.6,SECOND_STATEMENT]:
         duck=1-.24*np.exp(-((tt-land)/.10)**2)
         mix*=duck[:,None]
     sfx=audio(ROOT/'sfx_options/sticker_A_classic.wav')
@@ -196,8 +215,9 @@ def render():
         mix[start:end]+=sfx[:end-start]*.8
     # Final statement gets the same contact sound, without another peel.
     press=sfx[round(.62*sr):]
-    start=round(11.6*sr); end=min(n,start+len(press))
-    mix[start:end]+=press[:end-start]*.8
+    for statement in [11.6,SECOND_STATEMENT]:
+        start=round(statement*sr); end=min(n,start+len(press))
+        mix[start:end]+=press[:end-start]*.8
     wavfile.write(WORK/'mix.wav',sr,(np.clip(mix,-1,1)*32767).astype(np.int16))
     subprocess.run([FF,'-y','-loglevel','error','-i',str(WORK/'silent.mp4'),'-i',str(WORK/'mix.wav'),
         '-c:v','copy','-af','loudnorm=I=-16:TP=-1.5:LRA=9','-c:a','aac','-b:a','192k',
