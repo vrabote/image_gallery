@@ -7,3 +7,9 @@ comments/*
 !comments/.gitkeep
 !comments/test.jpg.txt
 
+
+# --- сборка ролика SMILE SERVICE REPEAT ---
+.venv/
+__pycache__/
+*.pyc
+tiktok_smile_service_repeat/work/
