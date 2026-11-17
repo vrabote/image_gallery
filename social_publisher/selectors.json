@@ -1,0 +1,288 @@
+{
+  "_note": [
+    "Профили браузерного режима. Каждый ключ — площадка.",
+    "Селекторы могут устареть после редизайна сайта: поправьте их здесь",
+    "или создайте рядом с config.toml файл selectors.local.json с нужным",
+    "профилем — он переопределит встроенный.",
+    "Подсказка: python -m social_publisher learn <площадка> покажет реальные",
+    "input[type=file], поля ввода и кнопки на странице.",
+    "Поле url — страница, с которой начинается публикация; login_url — куда",
+    "вести пользователя для входа (команда login)."
+  ],
+  "youtube": {
+    "title": "YouTube Studio",
+    "title_selector": [
+      "ytcp-social-suggestions-textbox#title-textarea #textbox",
+      "#textbox"
+    ],
+    "url": "https://www.youtube.com/upload",
+    "login_url": "https://studio.youtube.com",
+    "file_input": [
+      "input[type=file]"
+    ],
+    "file_kinds": [
+      "video"
+    ],
+    "file_limit": 1,
+    "description": [
+      "ytcp-social-suggestions-textbox#description-textarea #textbox",
+      "#description-textarea #textbox"
+    ],
+    "tags": [
+      "ytcp-form-input-container#tags-container input",
+      "input[aria-label='Теги']"
+    ],
+    "publish_button": [
+      "ytcp-button#done-button",
+      "ytcp-button:has-text('Опубликовать')",
+      "ytcp-button:has-text('Publish')"
+    ],
+    "success": [
+      "ytcp-video-share-dialog",
+      "ytcp-uploads-dialog:has-text('Ссылка')"
+    ],
+    "dismiss": [
+      "ytcp-button.close-button"
+    ],
+    "after_upload_wait_ms": 12000,
+    "limits": {
+      "max_video_seconds": 43200,
+      "max_title_chars": 100,
+      "max_caption_chars": 5000,
+      "supports_images": false
+    },
+    "notes": "Studio подгружается медленно: если не находит поле, увеличьте browser.timeout_ms.",
+    "troubleshooting": "Если поле заголовка не заполнилось, откройте learn youtube и замените селектор в selectors.local.json."
+  },
+  "vk": {
+    "title": "ВКонтакте",
+    "url": "https://vk.com/feed",
+    "login_url": "https://vk.com/login",
+    "file_input": [
+      "input[type=file]"
+    ],
+    "file_kinds": [
+      "image",
+      "video"
+    ],
+    "file_limit": 10,
+    "steps": [
+      {
+        "when": "prepare",
+        "action": "click",
+        "selector": [
+          "#postponed_posts_open_btn",
+          "button:has-text('Что у вас нового')"
+        ]
+      },
+      {
+        "when": "prepare",
+        "action": "wait",
+        "ms": 2000
+      }
+    ],
+    "description": [
+      ".post_field",
+      "div[contenteditable='true']"
+    ],
+    "publish_button": [
+      "button:has-text('Опубликовать')",
+      "#post_button",
+      "#quick_post_button"
+    ],
+    "success": [
+      ".post--published",
+      ".wall_post_text"
+    ],
+    "url_pattern": "vk\\.com/wall",
+    "limits": {
+      "max_images": 10,
+      "max_caption_chars": 16000
+    },
+    "notes": "Через браузер удобно публиковать фото на стену; видео надёжнее через API (vk.access_token).",
+    "troubleshooting": "ВК часто просит подтвердить телефон/капчу — сделайте это руками один раз в окне браузера."
+  },
+  "rutube": {
+    "title": "Rutube",
+    "title_selector": [
+      "input[name='title']",
+      "input[placeholder*='азван']"
+    ],
+    "url": "https://studio.rutube.ru/",
+    "login_url": "https://rutube.ru/",
+    "file_input": [
+      "input[type=file]"
+    ],
+    "file_kinds": [
+      "video"
+    ],
+    "file_limit": 1,
+    "steps": [
+      {
+        "when": "prepare",
+        "action": "click",
+        "selector": [
+          "a:has-text('Загрузить')",
+          "button:has-text('Загрузить')",
+          "[data-qa='upload']"
+        ],
+        "optional": true
+      },
+      {
+        "when": "prepare",
+        "action": "wait",
+        "ms": 3000
+      }
+    ],
+    "description": [
+      "textarea[name='description']",
+      "textarea[placeholder*='писа']"
+    ],
+    "publish_button": [
+      "button:has-text('Опубликовать')",
+      "button:has-text('Загрузить')"
+    ],
+    "success": [
+      "text=Видео загружено",
+      ".upload-success"
+    ],
+    "after_upload_wait_ms": 20000,
+    "limits": {
+      "max_video_seconds": 21600,
+      "max_title_chars": 128,
+      "supports_images": false
+    },
+    "notes": "Студия Rutube — самый нестабильный интерфейс из списка; проверяйте селекторы через learn.",
+    "troubleshooting": "Если кнопка не находится, откройте learn rutube и обновите селектор в selectors.local.json."
+  },
+  "dzen": {
+    "title": "Дзен",
+    "title_selector": [
+      "input[placeholder*='аголов']",
+      "textarea[placeholder*='аголов']"
+    ],
+    "url": "https://dzen.ru/studio",
+    "login_url": "https://dzen.ru/login",
+    "file_input": [
+      "input[type=file]"
+    ],
+    "file_kinds": [
+      "video",
+      "image"
+    ],
+    "file_limit": 10,
+    "steps": [
+      {
+        "when": "prepare",
+        "action": "click",
+        "selector": [
+          "button:has-text('Создать')",
+          "a:has-text('Создать')"
+        ],
+        "optional": true
+      },
+      {
+        "when": "prepare",
+        "action": "wait",
+        "ms": 2000
+      }
+    ],
+    "description": [
+      "[contenteditable='true']",
+      "textarea"
+    ],
+    "publish_button": [
+      "button:has-text('Опубликовать')"
+    ],
+    "success": [
+      "text=Опубликовано",
+      ".publication-status"
+    ],
+    "limits": {
+      "max_title_chars": 100,
+      "max_images": 20
+    },
+    "notes": "API у Дзена нет: только браузерный режим или RSS."
+  },
+  "instagram": {
+    "title": "Instagram",
+    "url": "https://www.instagram.com/",
+    "login_url": "https://www.instagram.com/accounts/login/",
+    "file_input": [
+      "input[type=file][accept*='image']",
+      "input[type=file]"
+    ],
+    "file_kinds": [
+      "image",
+      "video"
+    ],
+    "file_limit": 10,
+    "steps": [
+      {
+        "when": "prepare",
+        "action": "click",
+        "selector": [
+          "svg[aria-label='Новая публикация']",
+          "svg[aria-label='New post']",
+          "a[href='/create/select/']"
+        ],
+        "optional": true
+      },
+      {
+        "when": "prepare",
+        "action": "wait",
+        "ms": 2500
+      }
+    ],
+    "description": [
+      "div[aria-label*='одпис']",
+      "div[contenteditable='true']"
+    ],
+    "publish_button": [
+      "button:has-text('Поделиться')",
+      "button:has-text('Share')"
+    ],
+    "success": [
+      "text=Публикация опубликована",
+      "text=Your post has been shared"
+    ],
+    "limits": {
+      "max_images": 10,
+      "max_caption_chars": 2200,
+      "max_video_seconds": 900
+    },
+    "notes": "Instagram агрессивно борется с автоматизацией: не запускайте пачками, входите вручную.",
+    "troubleshooting": "Если появилась капча/проверка — пройдите её руками; следующий пост пойдёт дальше."
+  },
+  "tiktok": {
+    "title": "TikTok",
+    "url": "https://www.tiktok.com/tiktokstudio/upload?from=upload",
+    "login_url": "https://www.tiktok.com/login",
+    "file_input": [
+      "input[type=file]"
+    ],
+    "file_kinds": [
+      "video"
+    ],
+    "file_limit": 1,
+    "description": [
+      "div[contenteditable='true']",
+      "textarea"
+    ],
+    "publish_button": [
+      "button:has-text('Опубликовать')",
+      "button:has-text('Post')"
+    ],
+    "success": [
+      "text=Ваше видео отправлено",
+      "text=Your video is being uploaded"
+    ],
+    "after_upload_wait_ms": 15000,
+    "limits": {
+      "max_video_seconds": 600,
+      "max_caption_chars": 2200
+    },
+    "notes": "Загружайте вертикальные видео до 10 минут.",
+    "troubleshooting": "TikTok часто меняет студию — обновите селекторы через learn tiktok."
+  }
+}

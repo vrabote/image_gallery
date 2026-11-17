@@ -1,5 +1,10 @@
 .DS_Store
 .idea
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
 uploads/*
 !uploads/.gitkeep
 !uploads/test.jpg
@@ -7,3 +12,9 @@ comments/*
 !comments/.gitkeep
 !comments/test.jpg.txt
 
+# публикатор: секреты, журнал, профиль браузера — не в репозиторий
+social_publisher/secrets.toml
+social_publisher/secrets.json
+social_publisher/client_secret.json
+social_publisher/state/
+social_publisher/selectors.local.json

@@ -1,0 +1,50 @@
+# Настройки публикатора. Секреты — в secrets.toml (см. secrets.example.toml).
+
+[app]
+# Куда складывать журнал, скриншоты, кэш токенов, профиль браузера
+state_dir = "state"
+http_timeout = 120
+http_retries = 3
+# Включить браузерный режим (нужен playwright). false — только API.
+browser_enabled = true
+
+[browser]
+# false = показывать окно браузера (так видно, что происходит, и можно войти)
+headless = false
+# Задержка между действиями, мс — чтобы интерфейс успевал реагировать
+slow_mo = 80
+# msedge или chrome — использовать уже установленный браузер (не нужен свой Chromium)
+# channel = "msedge"
+profile_dir = "state/browser-profile"
+timeout_ms = 60000
+# Сколько ждать подтверждения публикации на сайте
+result_timeout_ms = 240000
+
+[youtube]
+# Категория: число (22 = «Люди и блоги») или слово: музыка, игры, образование…
+category = 22
+privacy = "public"          # public | unlisted | private
+language = "ru"
+made_for_kids = false
+# Плейлисты по категориям из плана: [youtube.playlists] "Клипы" = "PLxxxxxxxx"
+# playlists = { "Клипы" = "PLxxxxxxxxxxxxxxxx" }
+
+[vk]
+# В secrets.toml: access_token и group_id. Здесь — только поведение.
+# Эти значения используются и в браузерном режиме (когда токена нет)
+upload_video = true
+group_id = ""                # id сообщества без минуса — куда постить
+user_id = 0                  # заполните, если публикуете на личную страницу с токеном без users.get
+
+[rutube]
+api_base = "https://rutube.ru/api"
+# category_id = 1
+# channel_id = "..."
+
+[telegram]
+# chat_id нужен и браузерному режиму (по умолчанию — если в плане не указан)
+chat_id = ""
+button_text = "Открыть"
+
+[dzen]
+# API нет — используется браузерный режим
