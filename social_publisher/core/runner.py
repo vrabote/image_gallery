@@ -57,8 +57,14 @@ class RunReport:
     def manual(self) -> int:
         return sum(1 for r in self.results if r.status == STATUS_MANUAL)
 
+    @property
+    def dry(self) -> int:
+        return sum(1 for r in self.results if r.status == "dry-run")
+
     def summary(self) -> str:
         parts = [f"опубликовано: {self.ok}"]
+        if self.dry:
+            parts.append(f"тестовый прогон: {self.dry}")
         if self.manual:
             parts.append(f"вручную: {self.manual}")
         if self.skipped:

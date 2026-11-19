@@ -131,6 +131,14 @@ class Secrets:
                 return cls(load_structured(candidate), path=candidate)
         return cls({}, path=None)
 
+    @classmethod
+    def load_file(cls, path: str | Path) -> "Secrets":
+        """Прочитать конкретный файл секретов (если он есть)."""
+        path = Path(path)
+        if path.exists():
+            return cls(load_structured(path), path=path)
+        return cls({}, path=path)
+
     def get(self, section: str, key: str, default: Any = None) -> Any:
         env_key = f"{ENV_PREFIX}{section}_{key}".upper().replace("-", "_")
         from_env = os.environ.get(env_key)
@@ -169,3 +177,60 @@ def mask(value: str | None, keep: int = 4) -> str:
     if len(value) <= keep * 2:
         return "*" * len(value)
     return f"{value[:keep]}…{value[-keep:]}"
+
+
+# ---------------------------------------------------------------------------
+# запись секретов (используется окном «Входные данные»)
+# ---------------------------------------------------------------------------
+
+#: какие поля из формы попадают в secrets.toml, а какие — только в setup.json
+SECRET_FIELDS: dict[str, tuple[str, ...]] = {
+    "telegram": ("bot_token", "chat_id"),
+    "vk": ("access_token", "group_id"),
+    "youtube": ("client_id", "client_secret"),
+    "rutube": ("token", "channel_id"),
+}
+
+
+def tokenize_secrets(values: dict[str, dict[str, Any]]) -> dict[str, dict[str, str]]:
+    """Оставить в данных только секретные поля (для secrets.toml)."""
+    out: dict[str, dict[str, str]] = {}
+    for section, fields in values.items():
+        allowed = SECRET_FIELDS.get(section)
+        if allowed is None:
+            continue
+        picked = {}
+        for key in allowed:
+            value = fields.get(key)
+            if value not in (None, ""):
+                picked[key] = str(value).strip()
+        if picked:
+            out[section] = picked
+    return out
+
+
+def toml_quote(value: Any) -> str:
+    return json.dumps(str(value), ensure_ascii=False)
+
+
+def write_secrets(path: str | Path, data: dict[str, dict[str, Any]]) -> Path:
+    """Записать secrets.toml с правами «только владелец»."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# СЕКРЕТЫ — не публикуйте этот файл и не отправляйте никому.",
+        "# Заполняется окном «Входные данные» или руками.",
+        "",
+    ]
+    for section in sorted(data):
+        values = data[section] or {}
+        lines.append(f"[{section}]")
+        for key in sorted(values):
+            lines.append(f"{key} = {toml_quote(values[key])}")
+        lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return path

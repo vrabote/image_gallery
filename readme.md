@@ -9,6 +9,10 @@
 Instagram и TikTok (по токенам или через браузер, с подтверждением перед
 публикацией).
 
+Есть и оконный интерфейс для Windows — двойной клик по
+**`Запустить публикатор.bat`**: входные данные → отдельный блокнот на каждый
+сервис → проверка → запуск.
+
 ```bash
 python -m social_publisher doctor                 # проверить готовность
 python -m social_publisher plan plan.toml         # что и куда уйдёт
@@ -17,3 +21,4 @@ python -m social_publisher run plan.toml          # публикация с по
 ```
 
 Подробности и настройка площадок: [social_publisher/README.md](social_publisher/README.md).
+Оконный интерфейс: [social_publisher/gui/README.md](social_publisher/gui/README.md).
