@@ -1,311 +1,250 @@
-"""ОРИГИНАЛЬНЫЙ ЗВУК BARH для ролика «SMILE SERVICE REPEAT».
+"""Кинематографичный саунд-дизайн BARH (86 BPM, C minor, 6 тактов = 16.744 с).
 
-Почему не модный трек: у бизнес-аккаунтов TikTok большинство популярных песен
-недоступны (Commercial Music Library), а окно жизни звука — 7–10 дней.
-Свой звук живёт вечно, привязан к ролику и может сам стать трендом.
-
-Стилистика: slowed / moody / bass-heavy, 88 BPM, A minor, 8 тактов = 21.818 с.
-Структура повторяет монтаж (см. beat map в конце):
-  такт 0  — звонок салона самолёта + гул + пульс (хук)
-  такт 1  — DROP: бас, кик, тиканье часов, первое слово SMILE
-  такты 2–3 — грув, слова SERVICE / REPEAT, статтер на REPEAT
-  такт 4  — БРЕЙК: уходят барабаны, пад разворачивается (полный холст)
-  такт 5  — возврат битa, макросъёмка мазков
-  такт 6  — три штампа-слова + райзер
-  такт 7  — жёсткий срез в тишину: саб-удар и длинный хвост (лого BARH)
+Темп 86 BPM и тональность C minor совпадают с главным трендовым ориентиром
+недели (Steve Lacy — «the feeling»), поэтому:
+  1) основной ролик получает живой атмосферный саунд-дизайн (салон самолёта,
+     звонок бортпроводника, защёлка двери, тёплый Rhodes и поздний ночной грув);
+  2) беззвучная версия идеально ложится на бит при подстановке трека в TikTok.
 
 Запуск: .venv/bin/python make_audio.py
 """
 import os
 import numpy as np
 from scipy.io import wavfile
-from scipy.signal import butter, sosfilt, fftconvolve, resample_poly
+from scipy.signal import butter, sosfilt, fftconvolve
 
 SR = 48000
-BPM = 88
-BEAT = 60 / BPM
-BAR = 4 * BEAT
-BARS = 8
-DUR = BARS * BAR                       # 21.8182 c
-rng = np.random.default_rng(2026)
-N = int((DUR + 4.0) * SR)
+BPM = 86
+BEAT = 60.0 / BPM                      # 0.697674 s
+BAR = 4 * BEAT                         # 2.790698 s
+BARS = 6
+DUR = BARS * BAR                       # 16.744186 s
+N = int((DUR + 2.5) * SR)
+rng = np.random.default_rng(8600)
+
+L = np.zeros(N, dtype=np.float64)
+R = np.zeros(N, dtype=np.float64)
+REV_L = np.zeros(N, dtype=np.float64)
+REV_R = np.zeros(N, dtype=np.float64)
 
 
-def bus():
-    return np.zeros(N), np.zeros(N)
+def lp(x, fc, order=2):
+    return sosfilt(butter(order, min(fc, SR * 0.48), 'low', fs=SR, output='sos'), x)
 
 
-pad, pluck, bass, drum, fx, send = (bus() for _ in range(6))
+def hp(x, fc, order=2):
+    return sosfilt(butter(order, max(fc, 15.0), 'high', fs=SR, output='sos'), x)
 
 
-def lp(x, fc, o=2):
-    return sosfilt(butter(o, min(fc, SR / 2 - 100), 'low', fs=SR, output='sos'), x)
+def bp(x, lo, hi, order=2):
+    return sosfilt(butter(order, [max(lo, 15.0), min(hi, SR * 0.48)], 'band', fs=SR, output='sos'), x)
 
 
-def hp(x, fc, o=2):
-    return sosfilt(butter(o, fc, 'high', fs=SR, output='sos'), x)
-
-
-def bp(x, lo, hi, o=3):
-    return sosfilt(butter(o, [lo, min(hi, SR / 2 - 100)], 'band', fs=SR, output='sos'), x)
-
-
-def put(b, x, t0, pan=0.5, g=1.0, snd=0.0):
+def put(x, t0, pan=0.5, gain=1.0, rev=0.0):
     s = int(t0 * SR)
-    if s < 0 or s >= N:
+    if s >= N or s + len(x) <= 0:
         return
+    if s < 0:
+        x = x[-s:]
+        s = 0
     e = min(N, s + len(x))
-    x = x[:e - s] * g
-    c, sn = np.cos(pan * np.pi / 2), np.sin(pan * np.pi / 2)
-    b[0][s:e] += x * c
-    b[1][s:e] += x * sn
-    if snd:
-        send[0][s:e] += x * c * snd
-        send[1][s:e] += x * sn * snd
+    seg = x[:e - s] * gain
+    gl = np.cos(pan * np.pi / 2.0)
+    gr = np.sin(pan * np.pi / 2.0)
+    L[s:e] += seg * gl
+    R[s:e] += seg * gr
+    if rev > 0:
+        REV_L[s:e] += seg * gl * rev
+        REV_R[s:e] += seg * gr * rev
 
 
-def mf(m):
-    return 440 * 2 ** ((m - 69) / 12)
+def midi_hz(m):
+    return 440.0 * (2.0 ** ((m - 69) / 12.0))
 
 
-def osc(kind, f, n, ph0=0.0, w=0.5, over=2):
-    t = np.arange(n * over) / (SR * over)
-    ph = (f * t + ph0) % 1
-    y = (2 * ph - 1) if kind == 'saw' else np.where(ph < w, 1.0, -1.0)
-    if kind == 'tri':
-        y = 1 - 4 * np.abs(ph - 0.5)
-    if kind == 'sine':
-        y = np.sin(2 * np.pi * ph)
-    return resample_poly(y, 1, over)
-
-
-def adsr(n, a, d, s, r):
-    t = np.arange(n) / SR
-    dur = n / SR
-    e = np.minimum(1, t / max(a, 1e-4)) * (s + (1 - s) * np.exp(-np.maximum(t - a, 0) / max(d, 1e-4)))
-    return e * np.minimum(1, np.maximum(dur - t, 0) / max(r, 1e-4))
-
-
-# Am – F – C – G, с возвратом в Am на пике и на логотипе
-CH = [
-    dict(root=45, pad=[57, 60, 64, 69], arp=[69, 72, 76, 72]),  # Am
-    dict(root=41, pad=[53, 57, 60, 65], arp=[65, 69, 72, 69]),  # F
-    dict(root=48, pad=[55, 60, 64, 67], arp=[67, 72, 76, 72]),  # C
-    dict(root=43, pad=[55, 59, 62, 67], arp=[62, 67, 71, 67]),  # G
-    dict(root=45, pad=[57, 60, 64, 72], arp=[69, 72, 76, 81]),  # Am (wide)
-    dict(root=41, pad=[53, 57, 60, 65], arp=[65, 69, 72, 77]),  # F
-    dict(root=45, pad=[57, 60, 64, 69], arp=[69, 72, 76, 72]),  # Am
-    dict(root=45, pad=[57, 60, 64, 69], arp=[69, 72, 76, 72]),  # Am (outro)
-]
-
-
-def chorus(x, rate=0.29, depth=0.007):
-    t = np.arange(len(x)) / SR
-    d = (0.019 + depth * np.sin(2 * np.pi * rate * t)) * SR
-    idx = np.arange(len(x)) - d
-    return np.interp(np.clip(idx, 0, len(x) - 1), np.arange(len(x)), x)
-
-
-# ------------------------------------------------------------------ PAD
-for b in range(BARS):
-    c = CH[b]
-    t0 = max(0.0, b * BAR - 0.55)
-    dur = BAR + 2.2 + (2.6 if b == BARS - 1 else 0)
+def rhodes_note(midi, dur, vel=1.0):
+    """Тёплое электропиано: чистый фундаментал + мягкий колокольчиковый призвук."""
     n = int(dur * SR)
-    mix = np.zeros(n)
-    for m in c['pad']:
-        for d in (-0.0042, 0.0042):        # расстройка = «плёночный» slowed-саунд
-            mix += osc('saw', mf(m) * (1 + d), n, rng.random(), over=1)
-    wobble = 1 + 0.0016 * np.sin(2 * np.pi * 0.7 * np.arange(n) / SR)
-    mix = lp(mix, 820 + 340 * np.sin(b * 0.8)) * adsr(n, 1.1, 5, 1, 1.5) * 0.052 * wobble
-    put(pad, mix, t0, 0.5, 1.0, snd=0.6)
-pad = (0.68 * pad[0] + 0.52 * chorus(pad[0], 0.27),
-       0.68 * pad[1] + 0.52 * chorus(pad[1], 0.41, 0.009))
+    t = np.arange(n) / SR
+    f = midi_hz(midi)
+    body = np.sin(2 * np.pi * f * t) * np.exp(-t / max(1.1, dur * 0.75))
+    tine = 0.24 * np.sin(2 * np.pi * (f * 2.0) * t) * np.exp(-t / 0.14)
+    bell = 0.08 * np.sin(2 * np.pi * (f * 7.0) * t) * np.exp(-t / 0.035)
+    att = np.minimum(1.0, t / 0.008)
+    rel = np.minimum(1.0, np.maximum(dur - t, 0.0) / 0.18)
+    trem = 1.0 + 0.06 * np.sin(2 * np.pi * 3.8 * t)
+    return (body + tine + bell) * att * rel * trem * vel
 
-# --------------------------------------------------------------- PLUCK
-for b in range(1, 7):
-    c = CH[b]
-    for i in range(8):
-        if b == 4 and i % 2 == 1:          # брейк: оставляем воздух
-            continue
-        m = c['arp'][[0, 2, 1, 3, 0, 2, 3, 1][i]]
-        f = mf(m)
-        n = int(0.42 * SR)
-        t = np.arange(n) / SR
-        x = 0.75 * osc('tri', f, n) + 0.25 * osc('sine', f * 2, n)
-        x += 0.05 * bp(rng.standard_normal(n), 1800, 6000) * np.exp(-t / 0.008)
-        x = lp(x, 2600) * adsr(n, 0.003, 0.16, 0.12, 0.12) * 0.16
-        vel = 0.55 if b == 4 else (1.0 if i % 2 == 0 else 0.72)
-        put(pluck, x, b * BAR + i * BEAT / 2, 0.36 + 0.28 * (i % 2), vel, snd=0.55)
 
-# ---------------------------------------------------------------- BASS
-for b in range(1, 7):
-    c = CH[b]
-    r = mf(c['root'])
-    for q in range(4):
-        if b == 4 and q in (1, 2, 3):      # брейк: только опора на первую долю
-            continue
-        if b == 3 and q == 3:              # статтер на слове REPEAT
-            for k in range(3):
-                nn = int(0.09 * SR)
-                xx = (0.7 * osc('saw', r * (1 + 0.01 * k), nn) + 0.6 * osc('sine', r, nn))
-                xx = lp(xx, 420) * adsr(nn, 0.002, 0.05, 0.3, 0.02) * 0.34
-                put(bass, xx, b * BAR + q * BEAT + k * 0.11, 0.5, 0.8)
-            continue
-        nn = int(BEAT * 0.86 * SR)
-        xx = 0.55 * osc('saw', r, nn) + 0.85 * osc('sine', r / 2, nn)
-        xx = lp(xx, 360) * adsr(nn, 0.004, 0.22, 0.55, 0.05) * 0.42
-        put(bass, xx, b * BAR + q * BEAT, 0.5, 1.0 if q in (0, 2) else 0.62)
+# 1. САЛОН САМОЛЁТА (0.00 – 2.85 s): низкий гул + звонок + щелчок двери + мягкий винил
+cabin_n = int(3.2 * SR)
+cabin_t = np.arange(cabin_n) / SR
+brown = bp(np.cumsum(rng.standard_normal(cabin_n)), 48, 220, 4)
+brown = brown / (np.std(brown) + 1e-9)
+air = bp(rng.standard_normal(cabin_n), 320, 1100, 2)
+air = air / (np.std(air) + 1e-9)
+cabin_hum = brown * 0.055 + air * 0.012
+cabin_fade = np.minimum(1.0, cabin_t / 0.15) * (1.0 - np.clip((cabin_t - 1.35) / 1.45, 0.0, 1.0)) ** 1.4
+put(cabin_hum * cabin_fade, 0.0, pan=0.5, gain=1.0, rev=0.12)
 
-# --------------------------------------------------------------- DRUMS
+# Двухтоновый звонок бортпроводника (G5 -> Eb5, как в C minor)
+def chime_tone(hz, dur=1.25):
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    y = (np.sin(2 * np.pi * hz * t) * np.exp(-t / 0.42)
+         + 0.18 * np.sin(2 * np.pi * hz * 2.0 * t) * np.exp(-t / 0.16)
+         + 0.06 * np.sin(2 * np.pi * hz * 3.0 * t) * np.exp(-t / 0.07))
+    return y * np.minimum(1.0, t / 0.004)
+
+
+put(chime_tone(783.99, 1.1), 0.24, pan=0.56, gain=0.16, rev=0.55)
+put(chime_tone(622.25, 1.5), 0.62, pan=0.44, gain=0.17, rev=0.60)
+
+# Тихий механический щелчок двери/защёлки в пустом салоне (1.45 s)
+ln = int(0.28 * SR)
+lt = np.arange(ln) / SR
+latch = (np.sin(2 * np.pi * 88 * lt) * np.exp(-lt / 0.028) * 0.45
+         + bp(rng.standard_normal(ln), 900, 3200, 2) * np.exp(-lt / 0.012) * 0.28)
+put(latch, 1.45, pan=0.52, gain=0.42, rev=0.25)
+
+# Виниловая пыль по всей длине (едва слышная, тёплая плёнка)
+vin = bp(rng.standard_normal(N), 900, 5200, 1) * 0.0022
+L += vin
+R += np.roll(vin, 317)
+
+# 2. ГАРМОНИЯ RHODES (C minor: Cm9 -> Abmaj7 -> Fm9 -> G7sus4 -> Cm9 -> Cm9)
+chords = [
+    (1 * BAR, 2 * BEAT, [48, 55, 58, 63, 62]),        # Cm9 (2.79 s)
+    (1 * BAR + 2 * BEAT, 2 * BEAT, [44, 51, 55, 60]), # Abmaj7
+    (2 * BAR, 2 * BEAT, [41, 48, 51, 56, 60]),        # Fm9
+    (2 * BAR + 2 * BEAT, 1.65 * BEAT, [43, 50, 53, 58]), # G7sus4 (пауза перед ревилом)
+    (3 * BAR, 4 * BEAT, [48, 55, 58, 63, 67, 74]),    # Cm9 wide reveal (8.37 s)
+    (5 * BAR, 3.8 * BEAT, [48, 55, 58, 63, 67]),      # Cm9 finale (13.95 s)
+]
+for t0, dur, notes in chords:
+    for idx, m in enumerate(notes):
+        strum = idx * 0.018
+        pan = 0.42 + 0.16 * (idx / max(1, len(notes) - 1))
+        put(rhodes_note(m, dur + 0.6, vel=0.14), t0 + strum, pan=pan, gain=1.0, rev=0.42)
+
+# Предвестник входа (мягкий вдох/обратный шлейф перед 2.79 s и перед 8.37 s)
+for t_hit, dur_sw, g_sw in [(1 * BAR, 0.9, 0.10), (3 * BAR, 0.72, 0.13)]:
+    sn = int(dur_sw * SR)
+    st = np.arange(sn) / SR
+    sw = lp(rng.standard_normal(sn), 900, 2) * (st / dur_sw) ** 2.6 * np.exp(-(dur_sw - st) * 0.5)
+    put(sw, t_hit - dur_sw, pan=0.5, gain=g_sw, rev=0.5)
+
+# 3. ГЛУБОКИЙ САБ-БАС (C2=36, Ab1=32, F1=29, G1=31)
+bass_notes = [
+    (1 * BAR, 2 * BEAT, 36),
+    (1 * BAR + 2 * BEAT, 2 * BEAT, 32),
+    (2 * BAR, 2 * BEAT, 29),
+    (2 * BAR + 2 * BEAT, 1.55 * BEAT, 31),
+    (3 * BAR, 3.8 * BEAT, 36),
+    (4 * BAR, 1.2 * BEAT, 36),
+    (4 * BAR + 1.333 * BEAT, 1.2 * BEAT, 34),
+    (4 * BAR + 2.667 * BEAT, 1.15 * BEAT, 31),
+    (5 * BAR, 3.6 * BEAT, 36),
+]
+for t0, dur, m in bass_notes:
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    f = midi_hz(m)
+    sub = (np.sin(2 * np.pi * f * t) + 0.25 * np.sin(2 * np.pi * f * 2 * t))
+    sub = lp(sub, 165, 2)
+    env = np.minimum(1.0, t / 0.025) * np.exp(-t / max(0.8, dur * 0.85)) * np.minimum(1.0, np.maximum(dur - t, 0.0) / 0.08)
+    put(sub * env, t0, pan=0.5, gain=0.28, rev=0.02)
+
+# 4. МЯГКИЙ R&B / НУАР БИТ (Bars 1-3)
 def kick():
-    n = int(0.45 * SR)
+    n = int(0.32 * SR)
     t = np.arange(n) / SR
-    f = 46 + 120 * np.exp(-t / 0.028)
-    ph = 2 * np.pi * np.cumsum(f) / SR
-    return (np.sin(ph) * np.exp(-t / 0.17)
-            + 0.22 * bp(rng.standard_normal(n), 1400, 5200) * np.exp(-t / 0.006))
+    ph = 2 * np.pi * np.cumsum(46 + 95 * np.exp(-t / 0.032)) / SR
+    return np.sin(ph) * np.exp(-t / 0.11) * np.minimum(1.0, t / 0.003)
 
 
-def clap():
-    n = int(0.42 * SR)
-    x = np.zeros(n)
+def rim():
+    n = int(0.14 * SR)
     t = np.arange(n) / SR
-    for o in (0, 0.011, 0.023):
-        s = int(o * SR)
-        k = int(0.09 * SR)
-        x[s:s + k] += bp(rng.standard_normal(k), 900, 5200) * np.exp(-np.arange(k) / SR / 0.018)
-    m = int(0.03 * SR)
-    x[m:] += bp(rng.standard_normal(n - m), 900, 4200) * np.exp(-t[:n - m] / 0.11) * 0.4
-    return x
+    tone = np.sin(2 * np.pi * 410 * t) * np.exp(-t / 0.015)
+    snap = bp(rng.standard_normal(n), 1100, 3400, 2) * np.exp(-t / 0.035)
+    return (tone * 0.45 + snap * 0.55) * np.minimum(1.0, t / 0.002)
 
 
-def hat(op=False):
-    n = int((0.24 if op else 0.045) * SR)
-    return hp(rng.standard_normal(n), 7200) * np.exp(-np.arange(n) / SR / (0.085 if op else 0.013))
-
-
-for b in [1, 2, 3, 5, 6]:
-    for q in range(4):
-        put(drum, kick(), b * BAR + q * BEAT if q in (0, 2) else b * BAR + q * BEAT, 0.5,
-            0.8 if q in (0, 2) else 0.0)
-        put(drum, hat(), b * BAR + q * BEAT + BEAT / 2, 0.62, 0.16)
-        if q in (1, 3) and b >= 2:
-            put(drum, clap(), b * BAR + q * BEAT, 0.5, 0.30, snd=0.5)
-        if b >= 2:
-            # «тики» часов: 16-е, мотив бесконечной смены
-            for j in range(4):
-                put(drum, hat(), b * BAR + q * BEAT + j * BEAT / 4, 0.42 + 0.16 * j, 0.045)
-    put(drum, hat(True), b * BAR + 3.5 * BEAT, 0.58, 0.11)
-# мягкая опора в такте брейка
-put(drum, kick(), 4 * BAR, 0.5, 0.42, snd=0.5)
-
-# ------------------------------------------------------------------ FX
-def chime(t0, f1=1046.5, f2=1318.5, g=0.20):
-    n = int(1.5 * SR)
+def hat(vel=1.0):
+    n = int(0.06 * SR)
     t = np.arange(n) / SR
-    x = (np.sin(2 * np.pi * f1 * t) + 0.75 * np.sin(2 * np.pi * f2 * t)
-         + 0.18 * np.sin(2 * np.pi * f1 * 2 * t))
-    x *= np.exp(-t / 0.42) * np.minimum(1, t / 0.004)
-    put(fx, lp(x, 5200) * g, t0, 0.5, 1.0, snd=0.85)
-    put(fx, lp(x, 5200) * g * 0.8, t0 + 0.23, 0.5, 1.0, snd=0.7)
+    return hp(rng.standard_normal(n), 6800, 2) * np.exp(-t / 0.015) * vel
 
 
-def stamp(t0, g=1.0):
-    n = int(0.20 * SR)
-    t = np.arange(n) / SR
-    x = bp(rng.standard_normal(n), 350, 3800) * np.exp(-t / 0.026)
-    thud = np.sin(2 * np.pi * 95 * t) * np.exp(-t / 0.055) * 0.5
-    put(fx, (x * 0.55 + thud) * 0.35 * g, t0, 0.5, 1.0, snd=0.5)
+K = kick()
+RM = rim()
+for b in (1, 2, 3):
+    t_bar = b * BAR
+    # Без лишнего шума на последнем полутакте перед ревилом (пауза 7.65..8.37)
+    for bt in (0.0, 1.5, 2.5):
+        if b == 2 and bt > 2.0:
+            continue
+        put(K, t_bar + bt * BEAT, pan=0.5, gain=0.46, rev=0.04)
+    for bt in (1.0, 3.0):
+        if b == 2 and bt >= 3.0:
+            continue
+        put(RM, t_bar + bt * BEAT, pan=0.52, gain=0.20, rev=0.35)
+    for sub_b in np.arange(0, 4, 0.5):
+        if b == 2 and sub_b >= 2.7:
+            continue
+        put(hat(0.045 if sub_b % 1 == 0 else 0.025), t_bar + sub_b * BEAT, pan=0.46, gain=1.0, rev=0.18)
 
+# 5. ТРИ МАКРО-КАДРА МАЗКОВ (Bar 4: 11.16, 12.09, 13.02): мягкий кистевой/затворный акцент
+for k_idx, t_cut in enumerate([4 * BAR, 4 * BAR + 4 / 3 * BEAT, 4 * BAR + 8 / 3 * BEAT]):
+    put(K, t_cut, pan=0.5, gain=0.36, rev=0.06)
+    bn = int(0.16 * SR)
+    bt = np.arange(bn) / SR
+    brush = bp(rng.standard_normal(bn), 1400, 4800, 2) * np.exp(-bt / 0.035) * np.minimum(1.0, bt / 0.005)
+    put(brush, t_cut, pan=0.44 + 0.06 * k_idx, gain=0.09, rev=0.25)
 
-def shutter(t0, g=1.0):
-    n = int(0.075 * SR)
-    t = np.arange(n) / SR
-    x = hp(rng.standard_normal(n), 2600) * np.exp(-t / 0.008) * 0.22 * g
-    put(fx, x, t0, 0.62, 1.0)
+# 6. ФИНАЛ BARH (13.95 s): глубокий кино-удар и тихое затухание
+fn = int(2.2 * SR)
+ft = np.arange(fn) / SR
+boom = np.sin(2 * np.pi * np.cumsum(38 + 42 * np.exp(-ft / 0.07)) / SR) * np.exp(-ft / 0.72)
+put(boom, 5 * BAR, pan=0.5, gain=0.38, rev=0.18)
 
+# 7. РЕВЕРБЕРАЦИЯ И МАСТЕРИНГ
+ir_n = int(1.9 * SR)
+ir_t = np.arange(ir_n) / SR
+ir_l = lp(rng.standard_normal(ir_n), 2800, 1) * np.exp(-ir_t / 0.48)
+ir_r = lp(rng.standard_normal(ir_n), 2600, 1) * np.exp(-ir_t / 0.52)
+ir_l[:int(0.022 * SR)] = 0
+ir_r[:int(0.024 * SR)] = 0
+ir_l /= (np.sqrt(np.sum(ir_l ** 2)) + 1e-9)
+ir_r /= (np.sqrt(np.sum(ir_r ** 2)) + 1e-9)
 
-def riser(a, b):
-    n = int((b - a) * SR)
-    x = np.zeros(n)
-    blk = int(0.08 * SR)
-    for i in range(0, n - blk, blk):
-        q = i / n
-        fc = 280 * (30 ** q)
-        x[i:i + blk] = bp(rng.standard_normal(blk), fc * 0.7, fc * 1.5, 2) * q ** 2
-    put(send, x * 0.55, a, 0.5, 1.0)
+wet_l = fftconvolve(REV_L, ir_l)[:N] * 0.42
+wet_r = fftconvolve(REV_R, ir_r)[:N] * 0.42
 
+mix_l = L + wet_l
+mix_r = R + wet_r
 
-def boom(t0):
-    n = int(2.1 * SR)
-    t = np.arange(n) / SR
-    f = 58 * np.exp(-t / 0.6) + 32
-    x = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.85) * 0.7
-    x += bp(rng.standard_normal(n), 60, 700) * np.exp(-t / 0.18) * 0.12
-    put(fx, x, t0, 0.5, 1.0, snd=1.0)
+# Плавный fade-out к самому концу 16.744 s
+fade_out = np.ones(N)
+s_fo = int((DUR - 0.55) * SR)
+e_fo = int(DUR * SR)
+fade_out[s_fo:e_fo] = np.linspace(1.0, 0.0, e_fo - s_fo) ** 1.6
+fade_out[e_fo:] = 0.0
 
-
-chime(0.02)                                            # звонок «пристегните ремни»
-# гул салона
-n = int(4 * BAR * SR)
-rumble = lp(np.cumsum(rng.standard_normal(n)), 160)
-rumble /= np.sqrt((rumble ** 2).mean()) + 1e-9       # нормируем: броуновский шум легко уходит в клиппинг
-rumble *= 0.030
-rumble *= np.minimum(1, np.arange(n) / SR / 0.6) * np.minimum(1, (4 * BAR - np.arange(n) / SR) / 1.2)
-put(fx, rumble, 0.0, 0.5, 1.0)
-for k, t0 in enumerate([BAR, 2 * BAR, 3 * BAR]):
-    stamp(t0, 1.0 if k == 0 else 0.82)                # слова SMILE / SERVICE / REPEAT
-shutter(4 * BAR, 0.5)                                 # белая вспышка на ревиле
-for k in range(3):
-    stamp(6 * BAR + k * BEAT, 0.42)                   # три штампа в лупе
-    shutter(6 * BAR + k * BEAT, 0.35)
-shutter(5 * BAR, 0.6)
-riser(6 * BAR + 2 * BEAT, 7 * BAR)
-boom(7 * BAR)
-
-# ------------------------------------------------------------- DELAY / REVERB
-def delay(x, time, fb, n=4, tone=3200):
-    y = np.zeros(len(x))
-    cur = lp(x, tone)
-    for k in range(1, n + 1):
-        s = int(k * time * SR)
-        cur = lp(cur, tone) * fb
-        y[s:] += cur[:len(x) - s]
-    return y
-
-
-pluck_e = (pluck[0] + 0.45 * delay(pluck[1], 0.75 * BEAT, 0.42),
-           pluck[1] + 0.45 * delay(pluck[0], 0.75 * BEAT, 0.42))
-
-
-def ir(sec=2.8):
-    n = int(sec * SR)
-    t = np.arange(n) / SR
-    x = rng.standard_normal(n) * np.exp(-t / 0.75)
-    x = lp(x, 5800)
-    x[:int(0.012 * SR)] *= np.linspace(0, 1, int(0.012 * SR))
-    return x / np.sqrt((x ** 2).sum())
-
-
-wet = (fftconvolve(send[0], ir())[:N], fftconvolve(send[1], ir())[:N])
-M = int(DUR * SR)
-L = pad[0] + pluck_e[0] + bass[0] + drum[0] + fx[0] + 1.7 * wet[0]
-R = pad[1] + pluck_e[1] + bass[1] + drum[1] + fx[1] + 1.7 * wet[1]
-y = np.stack([L[:M], R[:M]], 1)
-t = np.arange(M) / SR
-y *= np.minimum(1, t / 0.06)[:, None]                       # без «вздоха» на старте
-y *= np.minimum(1, np.maximum(DUR - t, 0) / 1.15)[:, None]  # хвост уходит в чёрный кадр
-y = hp(y.T, 32).T
-y = np.tanh(y * 1.5) * 0.72
-y *= 0.16 / np.sqrt((y ** 2).mean())
-y = np.clip(y / max(1.0, np.abs(y).max() / 0.96), -1, 1)
+st = np.column_stack([mix_l, mix_r])[:int(DUR * SR)] * fade_out[:int(DUR * SR), None]
+pk = np.max(np.abs(st)) + 1e-9
+if pk > 0.85:
+    st = np.tanh(st * (0.85 / pk) * 1.15) * 0.85
 
 os.makedirs('audio', exist_ok=True)
-wavfile.write('audio/BARH_original_sound.wav', SR, (y * 32767).astype(np.int16))
-print(f'audio/BARH_original_sound.wav  {DUR:.3f}s  peak={np.abs(y).max():.3f}  '
-      f'rms={20*np.log10(np.sqrt((y**2).mean())):.1f} dBFS')
-print('beat map (BPM 88, bar = %.3fs):' % BAR)
-for name, k in [('HOOK', 0), ('DROP / SMILE', 1), ('SERVICE', 2), ('REPEAT', 3),
-                ('REVEAL / BREAK', 4), ('DETAILS', 5), ('LOOP', 6), ('LOGO BARH', 7)]:
-    print(f'  {name:<18} {k*BAR:6.3f}s')
+out_wav = 'audio/BARH_noir_86bpm.wav'
+wavfile.write(out_wav, SR, np.clip(st * 32767, -32767, 32767).astype(np.int16))
+rms = 20 * np.log10(np.sqrt(np.mean(st ** 2)) + 1e-9)
+print(f'written {out_wav}: {len(st)/SR:.3f}s, peak={np.abs(st).max():.3f}, RMS={rms:.1f} dBFS')
+print(f'Beat map (86 BPM, BAR={BAR:.3f}s):')
+print(f'  0.000s  HOOK: EXIT-> & empty cabin')
+print(f'  {1*BAR:.3f}s  DESCENT: face -> scarf -> wings -> champagne -> SMILE SERVICE REPEAT')
+print(f'  {3*BAR:.3f}s  REVEAL: full canvas on dark museum wall')
+print(f'  {4*BAR:.3f}s  MACROS: 3 brushstroke close-ups')
+print(f'  {5*BAR:.3f}s  FINALE: BARH logo white on black')
