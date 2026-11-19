@@ -1,39 +1,35 @@
-=== ОСНОВНАЯ ПОДПИСЬ (Английский — глобальный охват, под кино-нуар) ===
+=== ОСНОВНАЯ ПОДПИСЬ (EN — под «Контраст» и «Чистый ArtTok») ===
 
-Cabin is empty.
-“SMILE SERVICE REPEAT” — new work by BARH.
+“SMILE SERVICE REPEAT” — 46 × 130 cm, new work by BARH.
 
-What’s the hardest part of working with people?
+What passengers never see after the flight lands.
 
 #artreveal #painting #contemporaryart #flightattendant #barh
 
 ---
 
-=== ВАРИАНТ 2 (Короткий, минимализм / галерейный) ===
+=== ВАРИАНТ 2 (Минимализм / галерейный) ===
 
-When the last passenger finally leaves.
-“SMILE SERVICE REPEAT” — BARH
+“SMILE SERVICE REPEAT”
+46 × 130 cm · BARH
 
 #painting #arttiktok #oilpainting #artistsoftiktok #barh
 
 ---
 
-=== ВАРИАНТ 3 (Для русскоязычной ленты / микс) ===
+=== ВАРИАНТ 3 (RU) ===
 
-Когда последний пассажир наконец вышел.
-Новая картина BARH — «SMILE SERVICE REPEAT».
+«SMILE SERVICE REPEAT», 46 × 130 см — новая картина BARH.
 
-Какая деталь зацепила первой?
+То, что остаётся в салоне после посадки.
 
 #artreveal #живопись #художник #contemporaryart #barh
 
 ---
 
-=== КАК ЗАЛИТЬ ПОД ТРЕНДОВЫЙ ТРЕК В TIKTOK ===
+=== МУЗЫКА В TIKTOK ===
 
-1. Беззвучный файл SMILE_SERVICE_REPEAT_BARH_silent.mp4 смонтирован ровно под 86 BPM (6 тактов = 16.74 с).
-2. Главный трендовый мэтч (ноябрь 2026): Steve Lacy — «the feeling» (86 BPM, C minor).
-   Также идеально ложатся любые медленные треки в 84–88 BPM (например, Sinny & 7vvch — «Time Back» slowed).
-3. Если хочется готовый звук «из коробки» — заливай основной SMILE_SERVICE_REPEAT_BARH.mp4:
-   в нём встроен атмосферный саунд-дизайн салона самолёта (звонок бортпроводника, дверь) и тёплый Rhodes-грув в 86 BPM.
-4. Обложку при публикации поставь из cover.png (портрет без текста).
+- Для версии _silent: в TikTok нажмите Add sound и выберите трек в спокойном темпе ~70–80 BPM
+  (например, Marnie Cusk — «Paper Moon Static» Slowed или Nova Charisma — «Stolen From Each Other»).
+- Готовые версии _contrast.mp4 (76 BPM) и _arttok.mp4 (72 BPM) уже идут со своим спокойным
+  кинематографичным саундом и полностью готовы к публикации.
