@@ -1,6 +1,12 @@
-"""Генерация двух спокойных кинематографичных саундтреков под оба сценария BARH:
-  1) audio/BARH_contrast_76bpm.wav — 76 BPM, 7 тактов = 22.105 с (Сценарий Б: Контраст)
-  2) audio/BARH_arttok_72bpm.wav   — 72 BPM, 6 тактов = 20.000 с (Сценарий В: Чистый ArtTok)
+"""Генерация дерзкого вирусного трека BARH (112 BPM, 7 тактов = 15.000 с) + старых спокойных версий.
+
+Главный трек audio/BARH_viral_112bpm.wav:
+  0.00 – 1.82 с  «Рекламный джингл авиакомпании»: мажорный весёлый звонок + ксилофон/поп-аккорд
+  1.82 – 2.14 с  СКРЕТЧ ВИНИЛА + tape-stop в короткий вакуум перед дропом
+  2.14 – 12.86 с ТЯЖЁЛЫЙ КАЧАЮЩИЙ DARK-POP / HIP-HOP БИТ (112 BPM, C minor):
+                 упругий 808-бас, жёсткий snare/clap, 16-е хэты, дерзкий синтезаторный плак,
+                 открытие широкого пада на 8.57 с (показ 46×130 см в двух интерьерах)
+ 12.86 – 15.00 с Финальный удар под логотип BARH на чёрном
 
 Запуск: ../.venv/bin/python make_audio.py
 """
@@ -10,7 +16,7 @@ from scipy.io import wavfile
 from scipy.signal import butter, sosfilt, fftconvolve
 
 SR = 48000
-rng = np.random.default_rng(46130)
+rng = np.random.default_rng(11200)
 
 
 def lp(x, fc, order=2):
@@ -29,50 +35,40 @@ def midi_hz(m):
     return 440.0 * (2.0 ** ((m - 69) / 12.0))
 
 
-def felt_piano(midi, dur, vel=1.0):
-    """Мягкое камерное «felt piano» / тёплое Rhodes — чисто, без резкой синтетики."""
-    n = int(dur * SR)
-    t = np.arange(n) / SR
-    f = midi_hz(midi)
-    body = np.sin(2 * np.pi * f * t) * np.exp(-t / max(1.3, dur * 0.85))
-    warm2 = 0.22 * np.sin(2 * np.pi * (f * 2.0) * t) * np.exp(-t / 0.35)
-    soft3 = 0.05 * np.sin(2 * np.pi * (f * 3.0) * t) * np.exp(-t / 0.12)
-    att = np.minimum(1.0, t / 0.018)
-    rel = np.minimum(1.0, np.maximum(dur - t, 0.0) / 0.25)
-    return (body + warm2 + soft3) * att * rel * vel
-
-
-def make_reverb(rev_l, rev_r, decay=0.65, cut=2400):
+def make_reverb(rev_l, rev_r, decay=0.38, cut=3800):
     n = len(rev_l)
-    ir_n = int(2.2 * SR)
+    ir_n = int(1.5 * SR)
     t = np.arange(ir_n) / SR
     ir_l = lp(rng.standard_normal(ir_n), cut, 1) * np.exp(-t / decay)
-    ir_r = lp(rng.standard_normal(ir_n), cut - 200, 1) * np.exp(-t / (decay + 0.05))
-    ir_l[:int(0.025 * SR)] = 0
-    ir_r[:int(0.028 * SR)] = 0
+    ir_r = lp(rng.standard_normal(ir_n), cut - 300, 1) * np.exp(-t / (decay + 0.03))
+    ir_l[:int(0.015 * SR)] = 0
+    ir_r[:int(0.017 * SR)] = 0
     ir_l /= (np.sqrt(np.sum(ir_l ** 2)) + 1e-9)
     ir_r /= (np.sqrt(np.sum(ir_r ** 2)) + 1e-9)
-    return fftconvolve(rev_l, ir_l)[:n] * 0.44, fftconvolve(rev_r, ir_r)[:n] * 0.44
+    return fftconvolve(rev_l, ir_l)[:n] * 0.36, fftconvolve(rev_r, ir_r)[:n] * 0.36
 
 
-def build_track(path, bpm, bars, chords, bass_seq, with_drums=True, with_chime=True):
-    beat = 60.0 / bpm
-    bar = 4 * beat
-    dur = bars * bar
-    n = int((dur + 2.5) * SR)
-    L = np.zeros(n, np.float64)
-    R = np.zeros(n, np.float64)
-    RL = np.zeros(n, np.float64)
-    RR = np.zeros(n, np.float64)
+def build_viral_track(path='audio/BARH_viral_112bpm.wav'):
+    BPM = 112
+    BEAT = 60.0 / BPM                     # 0.535714 s
+    BAR = 4 * BEAT                        # 2.142857 s
+    BARS = 7
+    DUR = BARS * BAR                      # 15.000000 s
+    N = int((DUR + 1.5) * SR)
+
+    L = np.zeros(N, np.float64)
+    R = np.zeros(N, np.float64)
+    RL = np.zeros(N, np.float64)
+    RR = np.zeros(N, np.float64)
 
     def put(x, t0, pan=0.5, gain=1.0, rev=0.0):
         s = int(t0 * SR)
-        if s >= n or s + len(x) <= 0:
+        if s >= N or s + len(x) <= 0:
             return
         if s < 0:
             x = x[-s:]
             s = 0
-        e = min(n, s + len(x))
+        e = min(N, s + len(x))
         seg = x[:e - s] * gain
         gl, gr = np.cos(pan * np.pi / 2), np.sin(pan * np.pi / 2)
         L[s:e] += seg * gl
@@ -81,71 +77,152 @@ def build_track(path, bpm, bars, chords, bass_seq, with_drums=True, with_chime=T
             RL[s:e] += seg * gl * rev
             RR[s:e] += seg * gr * rev
 
-    # Мягкий плёночный воздух
-    air = bp(rng.standard_normal(n), 700, 4200, 1)
-    air = air / (np.std(air) + 1e-9) * 0.0018
-    L += air
-    R += np.roll(air, 419)
+    # ---------------- 1) 0.00 - 1.82 s: ПРИТОРНО-ВЕСЁЛЫЙ РЕКЛАМНЫЙ ДЖИНГЛ (C major)
+    def bell_pop(hz, d=0.42):
+        n = int(d * SR)
+        t = np.arange(n) / SR
+        y = (np.sin(2 * np.pi * hz * t) * np.exp(-t / 0.16)
+             + 0.30 * np.sin(2 * np.pi * 2 * hz * t) * np.exp(-t / 0.07)
+             + 0.12 * np.sin(2 * np.pi * 3 * hz * t) * np.exp(-t / 0.03))
+        return y * np.minimum(1.0, t / 0.003)
 
-    if with_chime:
-        # Деликатный далёкий звонок салона на первом такте перехода к EXIT-> (t = 1 * bar + 0.18s)
-        for dt_c, hz in [(0.0, 783.99), (0.42, 622.25)]:
-            cn = int(1.4 * SR)
-            ct = np.arange(cn) / SR
-            ch = (np.sin(2 * np.pi * hz * ct) * np.exp(-ct / 0.45)
-                  + 0.14 * np.sin(2 * np.pi * hz * 2 * ct) * np.exp(-ct / 0.16)) * np.minimum(1.0, ct / 0.006)
-            put(ch, 1 * bar + 0.15 + dt_c, pan=0.54, gain=0.10, rev=0.65)
+    # Весёлый авиа-звонок (C6 -> E6)
+    put(bell_pop(1046.5, 0.55), 0.04, pan=0.55, gain=0.22, rev=0.35)
+    put(bell_pop(1318.5, 0.65), 0.24, pan=0.45, gain=0.22, rev=0.35)
 
-    for b_idx, b_len, notes, g in chords:
-        t0 = b_idx * bar
-        d_sec = b_len * bar
-        for idx, m in enumerate(notes):
-            pan = 0.40 + 0.20 * (idx / max(1, len(notes) - 1))
-            put(felt_piano(m, d_sec + 0.8, vel=g), t0 + idx * 0.026, pan=pan, gain=1.0, rev=0.45)
+    # Пружинистый мажорный поп-рифф C-E-G-A-G-E-C
+    jingle_notes = [(0.00, 72), (0.27, 76), (0.54, 79), (0.80, 81), (1.07, 79), (1.34, 76), (1.60, 72)]
+    for t_j, m_j in jingle_notes:
+        put(bell_pop(midi_hz(m_j), 0.32), t_j, pan=0.50, gain=0.24, rev=0.22)
+    # Мажорный поп-аккорд (C-E-G) и лёгкий кик-щёлк
+    jn = int(1.84 * SR)
+    jt = np.arange(jn) / SR
+    j_pad = sum(np.sin(2 * np.pi * midi_hz(m) * jt) for m in (60, 64, 67, 72)) * 0.07
+    j_pad *= np.minimum(1.0, jt / 0.02) * np.minimum(1.0, np.maximum(1.84 - jt, 0) / 0.05)
+    put(j_pad, 0.0, pan=0.5, gain=1.0, rev=0.25)
 
-    for b_idx, b_len, m, g in bass_seq:
-        t0 = b_idx * bar
-        d_sec = b_len * bar
-        bn = int(d_sec * SR)
-        bt = np.arange(bn) / SR
-        f = midi_hz(m)
-        sub = lp(np.sin(2 * np.pi * f * bt) + 0.22 * np.sin(2 * np.pi * 2 * f * bt), 155, 2)
-        env = np.minimum(1.0, bt / 0.035) * np.exp(-bt / max(1.0, d_sec * 0.9)) * np.minimum(1.0, np.maximum(d_sec - bt, 0.0) / 0.12)
-        put(sub * env, t0, pan=0.5, gain=g, rev=0.03)
+    # ---------------- 2) 1.82 - 2.14 s: ВИНТАЖНЫЙ СКРЕТЧ ПЛАСТИНКИ + ВАКУУМ ПЕРЕД ДРОПОМ
+    sn = int(0.28 * SR)
+    st = np.arange(sn) / SR
+    # Быстрое движение иглы вперёд-назад по канавке (сверххарактерный scratch!)
+    scrub_freq = 420.0 + 380.0 * np.sin(2 * np.pi * 14.5 * st) - 950.0 * (st / 0.28)
+    scrub_freq = np.maximum(65.0, scrub_freq)
+    scratch = np.tanh(2.4 * np.sin(2 * np.pi * np.cumsum(scrub_freq) / SR))
+    scratch = bp(scratch, 220, 4600, 2)
+    scratch_env = np.sin(np.pi * st / 0.28) ** 0.7 * (1.0 - 0.55 * (st / 0.28))
+    crackle = bp(rng.standard_normal(sn), 1800, 7500, 2) * 0.25 * (1.0 - st / 0.28)
+    put((scratch * 0.55 + crackle) * scratch_env, 1.82, pan=0.5, gain=0.95, rev=0.18)
 
-    if with_drums:
-        kn = int(0.35 * SR)
-        kt = np.arange(kn) / SR
-        k_wav = np.sin(2 * np.pi * np.cumsum(44 + 80 * np.exp(-kt / 0.035)) / SR) * np.exp(-kt / 0.12) * np.minimum(1.0, kt / 0.004)
-        rn = int(0.14 * SR)
-        rt = np.arange(rn) / SR
-        r_wav = (np.sin(2 * np.pi * 390 * rt) * np.exp(-rt / 0.015) * 0.4
-                 + bp(rng.standard_normal(rn), 950, 2900, 2) * np.exp(-rt / 0.035) * 0.5) * np.minimum(1.0, rt / 0.003)
-        for b in range(1, bars - 1):
-            # Пауза перед полным показом в интерьере на 3.8..4.0 такте
-            for bt in (0.0, 1.5, 2.5):
-                if b == 3 and bt > 2.0:
-                    continue
-                put(k_wav, b * bar + bt * beat, pan=0.5, gain=0.38, rev=0.04)
-            for bt in (1.0, 3.0):
-                if b == 3 and bt >= 3.0:
-                    continue
-                put(r_wav, b * bar + bt * beat, pan=0.52, gain=0.14, rev=0.35)
+    # ---------------- 3) 2.14 - 15.00 s: КАЧАЮЩИЙ DARK-POP / HIP-HOP БИТ (112 BPM, C minor)
+    def punch_kick():
+        n = int(0.32 * SR)
+        t = np.arange(n) / SR
+        f = 44.0 + 135.0 * np.exp(-t / 0.020)
+        body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.11)
+        click = bp(rng.standard_normal(n), 1500, 4800, 2) * np.exp(-t / 0.005) * 0.25
+        return np.tanh((body + click) * 1.45) * 0.85 * np.minimum(1.0, t / 0.0015)
 
-    # Тёплый глубокий удар в начале финального лого BARH
-    fn = int(2.2 * SR)
-    ft = np.arange(fn) / SR
-    boom = np.sin(2 * np.pi * np.cumsum(38 + 38 * np.exp(-ft / 0.08)) / SR) * np.exp(-ft / 0.85)
-    put(boom, (bars - 1) * bar, pan=0.5, gain=0.34, rev=0.20)
+    def hard_clap_snare():
+        n = int(0.20 * SR)
+        t = np.arange(n) / SR
+        tone = np.sin(2 * np.pi * 195 * t) * np.exp(-t / 0.022) * 0.55
+        noise = bp(rng.standard_normal(n), 1100, 6200, 2) * np.exp(-t / 0.055) * 0.70
+        clap_double = bp(rng.standard_normal(n), 1600, 5200, 2) * np.exp(-np.maximum(t - 0.014, 0) / 0.04) * (t >= 0.014) * 0.35
+        return (tone + noise + clap_double) * np.minimum(1.0, t / 0.0015)
+
+    def crisp_hat(dur=0.055, vel=1.0):
+        n = int(dur * SR)
+        t = np.arange(n) / SR
+        return hp(rng.standard_normal(n), 7200, 2) * np.exp(-t / (dur * 0.28)) * vel
+
+    def bass_808(midi, dur, gain=0.55):
+        n = int(dur * SR)
+        t = np.arange(n) / SR
+        f = midi_hz(midi)
+        # Небольшая горка на атаке + плотный гармонический саб
+        f_env = f * (1.0 + 0.55 * np.exp(-t / 0.014))
+        ph = 2 * np.pi * np.cumsum(f_env) / SR
+        raw = np.sin(ph) + 0.38 * np.sin(2 * ph) + 0.18 * np.sin(3 * ph)
+        sat = lp(np.tanh(raw * 1.65), 240, 2)
+        env = np.minimum(1.0, t / 0.008) * np.exp(-t / max(0.32, dur * 0.85)) * np.minimum(1.0, np.maximum(dur - t, 0) / 0.04)
+        return sat * env * gain
+
+    def dark_pluck(midi, dur=0.30, gain=0.22):
+        n = int(dur * SR)
+        t = np.arange(n) / SR
+        f = midi_hz(midi)
+        ph = (f * t) % 1.0
+        saw = (2.0 * ph - 1.0) + 0.5 * (2.0 * ((f * 1.005 * t) % 1.0) - 1.0)
+        y = lp(saw, 1800, 2) * np.exp(-t / 0.09)
+        return y * np.minimum(1.0, t / 0.003) * gain
+
+    K = punch_kick()
+    SN = hard_clap_snare()
+
+    # Ударный грув по тактам 1..5 (2.14 -> 12.86 s)
+    kick_beats = [0.0, 0.75, 1.5, 2.5, 3.25]
+    bass_prog = [
+        (1, [(0.0, 1.4, 36), (1.5, 0.9, 36), (2.5, 0.7, 39), (3.25, 0.7, 34)]),  # Cm -> Eb -> Bb
+        (2, [(0.0, 1.4, 36), (1.5, 0.9, 36), (2.5, 0.7, 41), (3.25, 0.7, 39)]),  # Cm -> F -> Eb
+        (3, [(0.0, 1.4, 32), (1.5, 0.9, 32), (2.5, 0.7, 34), (3.25, 0.65, 31)]), # Ab -> Bb -> G
+        (4, [(0.0, 1.4, 36), (1.5, 0.9, 36), (2.5, 0.7, 39), (3.25, 0.7, 34)]),  # CHORUS LOFT
+        (5, [(0.0, 1.4, 32), (1.5, 0.9, 32), (2.5, 0.7, 34), (3.25, 0.7, 31)]),  # GALLERY
+    ]
+    for b in range(1, 6):
+        tb = b * BAR
+        for kb in kick_beats:
+            put(K, tb + kb * BEAT, pan=0.5, gain=0.72, rev=0.04)
+        for sb in (1.0, 3.0):
+            put(SN, tb + sb * BEAT, pan=0.51, gain=0.46, rev=0.28)
+        for hb in np.arange(0.0, 4.0, 0.5):
+            vel = 0.14 if hb % 1.0 == 0 else 0.09
+            put(crisp_hat(0.05, vel), tb + hb * BEAT, pan=0.45, gain=1.0, rev=0.14)
+        # Триплетная дробь хэтов в конце Bar 3 прямо перед показом 46×130 см
+        if b == 3:
+            for j in range(4):
+                put(crisp_hat(0.04, 0.13 + 0.02 * j), tb + (3.5 + j * 0.125) * BEAT, pan=0.54, gain=1.0, rev=0.12)
+
+    for b, seq in bass_prog:
+        tb = b * BAR
+        for sb, sdur, smidi in seq:
+            put(bass_808(smidi, sdur * BEAT, gain=0.48), tb + sb * BEAT, pan=0.5, gain=1.0, rev=0.02)
+
+    # Дерзкий dark-pop синт-плак поверх грува (Cm: C4, Eb4, G4, Bb4)
+    riff = [(0.0, 60), (0.5, 63), (1.0, 67), (1.5, 63), (2.0, 70), (2.5, 67), (3.0, 63), (3.5, 62)]
+    for b in range(1, 6):
+        tb = b * BAR
+        for rb, rm in riff:
+            put(dark_pluck(rm, 0.24, 0.14 if b < 4 else 0.17), tb + rb * BEAT, pan=0.44 if rb % 1 == 0 else 0.56, gain=1.0, rev=0.35)
+
+    # Широкий хорусовый пад на показе двух интерьеров (Bars 4–5: 8.57 – 12.86 s)
+    for b, notes in [(4, [48, 55, 63, 67]), (5, [44, 51, 60, 67])]:
+        pn = int((BAR + 0.2) * SR)
+        pt = np.arange(pn) / SR
+        pad_w = np.zeros(pn)
+        for m in notes:
+            f = midi_hz(m)
+            pad_w += lp((2 * ((f * pt) % 1) - 1) + (2 * ((f * 1.006 * pt) % 1) - 1), 1600, 2) * 0.032
+        pad_w *= np.minimum(1.0, pt / 0.06) * np.minimum(1.0, np.maximum(BAR + 0.2 - pt, 0) / 0.15)
+        put(pad_w, b * BAR, pan=0.5, gain=0.95, rev=0.35)
+
+    # Краш-свип при входе в интерьеры (8.57 s)
+    cn = int(0.85 * SR)
+    ct = np.arange(cn) / SR
+    crash = hp(rng.standard_normal(cn), 3400, 2) * np.exp(-ct / 0.26) * 0.11
+    put(crash, 4 * BAR, pan=0.5, gain=1.0, rev=0.45)
+
+    # ---------------- 4) 12.86 - 15.00 s (Bar 6): ФИНАЛ BARH — МОЩНЫЙ УДАР + ХВОСТ
+    put(K, 6 * BAR, pan=0.5, gain=0.80, rev=0.05)
+    put(SN, 6 * BAR, pan=0.5, gain=0.40, rev=0.45)
+    put(bass_808(36, 3.6 * BEAT, gain=0.52), 6 * BAR, pan=0.5, gain=1.0, rev=0.08)
 
     wl, wr = make_reverb(RL, RR)
-    mix = np.column_stack([L + wl, R + wr])[:int(dur * SR)]
-    # Плавный fade-out последних 0.7 с
-    fo_n = int(0.70 * SR)
-    mix[-fo_n:] *= (np.linspace(1.0, 0.0, fo_n) ** 1.6)[:, None]
+    mix = np.column_stack([L + wl, R + wr])[:int(DUR * SR)]
+    fo_n = int(0.42 * SR)
+    mix[-fo_n:] *= (np.linspace(1.0, 0.0, fo_n) ** 1.5)[:, None]
     pk = np.max(np.abs(mix)) + 1e-9
-    if pk > 0.84:
-        mix = np.tanh(mix * (0.84 / pk) * 1.12) * 0.84
+    if pk > 0.88:
+        mix = np.tanh(mix * (0.88 / pk) * 1.15) * 0.88
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
     wavfile.write(path, SR, np.clip(mix * 32767, -32767, 32767).astype(np.int16))
@@ -153,54 +230,5 @@ def build_track(path, bpm, bars, chords, bass_seq, with_drums=True, with_chime=T
     print(f'written {path}: {len(mix)/SR:.3f}s, peak={np.abs(mix).max():.3f}, RMS={rms:.1f} dBFS')
 
 
-# 1) Сценарий Б — Контраст (76 BPM, 7 тактов = 22.105 s, C minor)
-build_track(
-    'audio/BARH_contrast_76bpm.wav',
-    bpm=76,
-    bars=7,
-    chords=[
-        (0.0, 1.0, [48, 55, 62, 63], 0.11),        # Cm(add9)
-        (1.0, 1.0, [44, 51, 55, 60], 0.12),        # Abmaj7
-        (2.0, 1.0, [41, 48, 55, 56], 0.13),        # Fm9
-        (3.0, 0.9, [43, 50, 53, 58], 0.13),        # G7sus4
-        (4.0, 1.0, [48, 55, 58, 63, 67], 0.15),    # Cm9 (вход в лофт)
-        (5.0, 1.0, [44, 51, 55, 60, 67], 0.14),    # Abmaj7
-        (6.0, 0.95, [48, 55, 58, 63], 0.13),       # Cm9 (BARH)
-    ],
-    bass_seq=[
-        (0.0, 1.0, 36, 0.20),
-        (1.0, 1.0, 32, 0.24),
-        (2.0, 1.0, 29, 0.25),
-        (3.0, 0.85, 31, 0.25),
-        (4.0, 1.0, 36, 0.28),
-        (5.0, 1.0, 32, 0.26),
-        (6.0, 0.90, 36, 0.25),
-    ],
-    with_drums=True,
-    with_chime=True,
-)
-
-# 2) Сценарий В — Чистый ArtTok / Галерея (72 BPM, 6 тактов = 20.000 s, F minor / Ab major)
-build_track(
-    'audio/BARH_arttok_72bpm.wav',
-    bpm=72,
-    bars=6,
-    chords=[
-        (0.0, 1.0, [53, 60, 63, 67, 68], 0.12),    # Fm9
-        (1.0, 1.0, [49, 56, 60, 63, 68], 0.13),    # Dbmaj9
-        (2.0, 1.0, [44, 51, 56, 60, 67], 0.13),    # Abmaj7
-        (3.0, 1.0, [44, 51, 56, 60, 63, 67], 0.15),# Abmaj9 (вход в светлую галерею)
-        (4.0, 1.0, [49, 56, 60, 65, 68], 0.14),    # Dbmaj7
-        (5.0, 0.95, [53, 60, 63, 68], 0.13),       # Fm7 (BARH)
-    ],
-    bass_seq=[
-        (0.0, 1.0, 41, 0.20),
-        (1.0, 1.0, 37, 0.22),
-        (2.0, 1.0, 32, 0.23),
-        (3.0, 1.0, 32, 0.27),
-        (4.0, 1.0, 37, 0.25),
-        (5.0, 0.90, 41, 0.24),
-    ],
-    with_drums=False,
-    with_chime=False,
-)
+if __name__ == '__main__':
+    build_viral_track()

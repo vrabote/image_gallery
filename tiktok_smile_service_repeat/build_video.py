@@ -1,23 +1,17 @@
-"""Сборка двух неторопливых, кристально резких TikTok-роликов (9:16) для BARH:
+"""Сборка TikTok-роликов 9:16 для BARH — «SMILE SERVICE REPEAT» (46 × 130 см).
 
-1) Сценарий Б — «Контраст: Витрина vs Усталость» (76 BPM, 22.11 с):
-   SMILE_SERVICE_REPEAT_BARH_contrast.mp4 (+ _silent.mp4)
-   - 0.00–3.16 с  Спокойный портрет + деликатный титр «what passengers never see.»
-   - 3.16–6.32 с  Табличка EXIT -> и тёплый свет иллюминатора
-   - 6.32–9.47 с  Золотое крылышко, красный платок и рука на ведёрке со льдом
-   - 9.47–12.63 с Тележка с надписью SMILE / SERVICE / REPEAT
-   - 12.63–18.95 с Полный показ картины 46×130 см в тёмном лофте (без полей!)
-   - 18.95–22.11 с Фирменный рукописный логотип BARH белым на чёрном
+Главный вирусный сценарий («Ожидание vs Реальность / Срыв пластинки», 112 BPM, 15.00 с):
+  0.00 – 1.85 с  Глянцевая «рекламная» стюардесса («WHAT AIRLINES SHOW YOU:»)
+  1.85 – 2.14 с  Скретч винила + RGB-глитч + короткий блэкаут перед дропом
+  2.14 – 6.43 с  Тяжёлый dark-pop дроп («WHAT I ACTUALLY PAINTED:»):
+                 ритмичные резкие удары в бит: лицо -> EXIT-> -> крылышки/шампанское -> тележка
+  6.43 – 8.57 с  Два резких макро живых мазков краски (губы/глаза -> выцарапанный текст)
+  8.57 – 12.86 с Полный показ картины 46×130 см в двух интерьерах без полей:
+                 тёмный лофт (8.57–10.71) -> светлая галерея (10.71–12.86)
+ 12.86 – 15.00 с Финал: крупный фирменный рукописный логотип BARH белым на чёрном
 
-2) Сценарий В — «Чистый ArtTok / Галерея» (72 BPM, 20.00 с):
-   SMILE_SERVICE_REPEAT_BARH_arttok.mp4 (+ _silent.mp4)
-   - 0.00–3.33 с  Чистый портрет с первого кадра (ноль слов)
-   - 3.33–6.67 с  Тележка SMILE / SERVICE / REPEAT и рука на льду
-   - 6.67–10.00 с Два спокойных макро-этюда живых мазков (глаза -> крылышко)
-   - 10.00–16.67 с Полный показ картины 46×130 см в светлой галерее (без полей!)
-   - 16.67–20.00 с Фирменный рукописный логотип BARH белым на чёрном
-
-Запуск: ../.venv/bin/python build_video.py
+Запуск: ../.venv/bin/python build_video.py          (рендерит главный viral-ролик)
+        ../.venv/bin/python build_video.py all       (все 3 варианта: viral, contrast, arttok)
 """
 import os
 import sys
@@ -34,10 +28,12 @@ FPS = 30
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
+FAKE_AD_PATH = 'work/fake_commercial_ad.png'
 LOFT_PATH = 'work/interior_loft.png'
 GALLERY_PATH = 'work/interior_gallery.png'
 F_SERIF_IT = 'fonts/InstrumentSerif-Italic.ttf'
-F_MONO = 'fonts/IBMPlexMono-Regular.ttf'
+F_OSWALD = 'fonts/Oswald-Variable.ttf'
+F_MONO = 'fonts/IBMPlexMono-Bold.ttf'
 
 SRC = cv2.imread(ART_PATH)
 if SRC is None:
@@ -51,6 +47,10 @@ LW = 720
 LH = int(LOGO.shape[0] * LW / LOGO.shape[1])
 LOGO_RS = cv2.resize(LOGO, (LW, LH), interpolation=cv2.INTER_AREA).astype(np.float32)
 LOGO_ALPHA = LOGO_RS[..., 3:4] / 255.0
+
+FAKE_AD = cv2.imread(FAKE_AD_PATH)
+if FAKE_AD is not None:
+    FAKE_AD = cv2.resize(FAKE_AD, (W, H), interpolation=cv2.INTER_LANCZOS4).astype(np.float32)
 
 gy, gx = np.mgrid[0:H, 0:W].astype(np.float32)
 VIG = (1.0 - 0.24 * (((gx - W / 2) / (W / 2)) ** 2 + ((gy - H / 2) / (H / 2)) ** 2) * 0.55)[..., None].astype(np.float32)
@@ -116,7 +116,7 @@ print('Подготовка интерьеров 46x130 см...')
 ROOM_LOFT = build_mounted_room(
     LOFT_PATH,
     crop_box=(48, 120, 720, 1315),
-    target_h_1080=720,            # 130 см -> 720 px, 46 см -> 255 px
+    target_h_1080=720,
     center_xy_1080=(540, 815),
     shadow_dx=4,
     shadow_dy=18,
@@ -125,7 +125,7 @@ ROOM_LOFT = build_mounted_room(
 ROOM_GALLERY = build_mounted_room(
     GALLERY_PATH,
     crop_box=(20, 50, 740, 1330),
-    target_h_1080=700,            # 130 см -> 700 px, 46 см -> 248 px
+    target_h_1080=700,
     center_xy_1080=(570, 825),
     shadow_dx=15,
     shadow_dy=13,
@@ -150,7 +150,6 @@ def zoom_room(room_hi, zoom, cy_shift=0.0):
 
 
 def crop_art(vh, cx, cy, sharp_boost=0.22):
-    """Резкий, не смазанный кадр с холста с деликатной детализацией мазков."""
     s = H / vh
     M = np.array([[s, 0.0, W / 2.0 - s * cx],
                   [0.0, s, H / 2.0 - s * cy]], np.float32)
@@ -165,76 +164,200 @@ def crop_art(vh, cx, cy, sharp_boost=0.22):
     return fr
 
 
-@lru_cache(maxsize=32)
-def text_tile(text, font_path, size, tracking, color, shadow=True):
+@lru_cache(maxsize=64)
+def text_tile(text, font_path, size, tracking, color, shadow=True, weight=0, pill_bg=None):
     f = ImageFont.truetype(font_path, size)
+    if weight:
+        f.set_variation_by_axes([weight])
     probe = ImageDraw.Draw(Image.new('RGBA', (4, 4)))
     widths = [probe.textlength(ch, font=f) for ch in text]
     asc, desc = f.getmetrics()
-    tw = int(sum(widths) + tracking * max(0, len(text) - 1) + 56)
-    th = int(asc + desc + 36)
+    pad_x = 34 if pill_bg else 28
+    pad_y = 20 if pill_bg else 16
+    tw = int(sum(widths) + tracking * max(0, len(text) - 1) + 2 * pad_x)
+    th = int(asc + desc + 2 * pad_y)
     im = Image.new('RGBA', (tw, th), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    if shadow:
-        x = 28.0
+    if pill_bg:
+        d.rounded_rectangle((0, 0, tw - 1, th - 1), radius=18, fill=pill_bg)
+    if shadow and not pill_bg:
+        x = float(pad_x)
         for ch, cw in zip(text, widths):
-            d.text((x + 2, 16), ch, font=f, fill=(0, 0, 0, 195))
+            d.text((x + 3, pad_y + 3), ch, font=f, fill=(0, 0, 0, 220))
             x += cw + tracking
-    x = 28.0
+    x = float(pad_x)
     for ch, cw in zip(text, widths):
-        d.text((x, 14), ch, font=f, fill=color + (255,))
+        d.text((x, pad_y), ch, font=f, fill=color + (255,))
         x += cw + tracking
     return np.array(im)
 
 
-def overlay_tile(frame, tile, cx, cy, alpha):
+def overlay_tile(frame, tile, cx, cy, alpha=1.0, scale=1.0):
     if alpha <= 0.002:
         return frame
-    h, w = tile.shape[:2]
+    t = tile
+    if abs(scale - 1.0) > 1e-3:
+        nw = max(1, int(round(tile.shape[1] * scale)))
+        nh = max(1, int(round(tile.shape[0] * scale)))
+        t = cv2.resize(tile, (nw, nh), interpolation=cv2.INTER_LINEAR)
+    h, w = t.shape[:2]
     x0, y0 = int(cx - w / 2), int(cy - h / 2)
     x1, y1 = max(0, x0), max(0, y0)
     x2, y2 = min(W, x0 + w), min(H, y0 + h)
     if x2 <= x1 or y2 <= y1:
         return frame
-    sub = tile[y1 - y0:y2 - y0, x1 - x0:x2 - x0].astype(np.float32)
+    sub = t[y1 - y0:y2 - y0, x1 - x0:x2 - x0].astype(np.float32)
     a = (sub[..., 3:4] / 255.0) * alpha
     frame[y1:y2, x1:x2] = frame[y1:y2, x1:x2] * (1.0 - a) + sub[..., :3][..., ::-1] * a
     return frame
 
 
-def render_barh_outro(dt):
+def render_barh_outro(dt, fast=False):
     frame = np.zeros((H, W, 3), np.float32)
-    q = np.clip((dt - 0.05) / 0.85, 0.0, 1.0)
+    sweep = 0.40 if fast else 0.85
+    q = np.clip((dt - 0.03) / sweep, 0.0, 1.0)
     q = q * q * (3.0 - 2.0 * q)
     cols = np.arange(LW, dtype=np.float32)[None, :, None]
     edge = LW * q * 1.18 - 0.18 * LW
     wipe = np.clip((edge - cols) / (0.18 * LW), 0.0, 1.0)
-    fade = np.clip(dt / 0.16, 0.0, 1.0)
+    fade = np.clip(dt / 0.08, 0.0, 1.0)
     x0 = (W - LW) // 2
     y0 = (H - LH) // 2 - 30
     frame[y0:y0 + LH, x0:x0 + LW] = 255.0 * LOGO_ALPHA * wipe * fade
     return frame
 
 
+# ================================================================== ГЛАВНЫЙ СЦЕНАРИЙ: VIRAL BEAT-SWITCH (112 BPM, 15.00 с)
+def make_viral_renderer():
+    if FAKE_AD is None:
+        raise SystemExit(f'нет файла {FAKE_AD_PATH}')
+    BPM = 112
+    BEAT = 60.0 / BPM                     # 0.535714 s
+    BAR = 4 * BEAT                        # 2.142857 s
+    DUR = 7 * BAR                         # 15.000000 s
+
+    def beat_bounce(dt, amp=0.065, tau=0.14):
+        return 1.0 + amp * np.exp(-(dt / tau) ** 2)
+
+    def render(t):
+        # ---------------- BAR 0 (0.00 - 2.14 с): ГЛЯНЦЕВАЯ РЕКЛАМА + СКРЕТЧ ПЛАСТИНКИ
+        if t < BAR:
+            # Вакуум-блэкаут 2.06..2.14 перед дропом
+            if t >= 2.06:
+                return np.zeros((H, W, 3), np.uint8)
+            p = t / BAR
+            z = 1.00 + 0.05 * p
+            M = np.array([[z, 0.0, W / 2 * (1 - z)],
+                          [0.0, z, H / 2 * (1 - z)]], np.float32)
+            fr = cv2.warpAffine(FAKE_AD, M, (W, H), flags=cv2.INTER_LANCZOS4,
+                                borderMode=cv2.BORDER_REPLICATE)
+            # Бодрая глянцевая подпись «WHAT AIRLINES SHOW YOU:»
+            pill = text_tile('WHAT AIRLINES SHOW YOU:', F_OSWALD, 54, 2, (20, 22, 26),
+                             shadow=False, weight=700, pill_bg=(255, 255, 255, 240))
+            fr = overlay_tile(fr, pill, W / 2, 275, alpha=1.0, scale=beat_bounce(t, 0.05, 0.12))
+
+            # 1.82 - 2.06 с: виниловый скретч (RGB-расслоение + полосы сдвига)
+            if t >= 1.82:
+                k = (t - 1.82) / 0.24
+                sh = int(10 + 18 * np.sin(k * 28.0))
+                fr[:, :, 0] = np.roll(fr[:, :, 0], sh, axis=1)
+                fr[:, :, 2] = np.roll(fr[:, :, 2], -sh, axis=1)
+                band_y = int((k * 1600) % (H - 180))
+                fr[band_y:band_y + 70, :] = np.roll(fr[band_y:band_y + 70, :], -sh * 2, axis=1)
+                fr *= (1.0 - 0.35 * k)
+            return np.clip(fr, 0, 255).astype(np.uint8)
+
+        # ---------------- BAR 6 (12.86 - 15.00 с): ЛОГОТИП BARH БЕЛЫМ НА ЧЁРНОМ
+        if t >= 6 * BAR:
+            return np.clip(render_barh_outro(t - 6 * BAR, fast=True), 0, 255).astype(np.uint8)
+
+        # ---------------- BARS 4-5 (8.57 - 12.86 с): ДВА ИНТЕРЬЕРА 46×130 СМ БЕЗ ПОЛЕЙ
+        if 4 * BAR <= t < 5 * BAR:
+            dt = t - 4 * BAR
+            p = dt / BAR
+            bounce = beat_bounce(dt % BEAT, 0.014, 0.10)
+            fr = zoom_room(ROOM_LOFT, (1.00 + 0.065 * p) * bounce, cy_shift=-10.0 * p)
+            if dt < 0.06:
+                fr += 32.0 * (1.0 - dt / 0.06)
+            lbl = text_tile('“SMILE SERVICE REPEAT”  ·  46 × 130 CM', F_MONO, 24, 5,
+                            (236, 232, 224), shadow=True)
+            fr = overlay_tile(fr, lbl, W / 2, 1255, 0.94)
+            return np.clip(fr, 0, 255).astype(np.uint8)
+
+        if 5 * BAR <= t < 6 * BAR:
+            dt = t - 5 * BAR
+            p = dt / BAR
+            bounce = beat_bounce(dt % BEAT, 0.014, 0.10)
+            fr = zoom_room(ROOM_GALLERY, (1.00 + 0.065 * p) * bounce, cy_shift=-8.0 * p)
+            if dt < 0.05:
+                fr += 24.0 * (1.0 - dt / 0.05)
+            lbl = text_tile('BARH  ·  “SMILE SERVICE REPEAT”  ·  46 × 130 CM', F_MONO, 22, 4,
+                            (45, 42, 38), shadow=False)
+            fr = overlay_tile(fr, lbl, W / 2, 1265, 0.90)
+            return np.clip(fr, 0, 255).astype(np.uint8)
+
+        # ---------------- BARS 1-3 (2.14 - 8.57 с): РЕЗКИЕ УДАРЫ В БИТ ПО ДЕТАЛЯМ КАРТИНЫ
+        # 6 чётких сегментов по 2 бита (= 1.071 с каждый): лицо -> EXIT -> крылышки/шампанское -> тележка -> макро губы -> макро текст
+        seg_len = 2 * BEAT
+        rel = t - BAR
+        seg_idx = min(5, int(rel / seg_len))
+        dt = rel - seg_idx * seg_len
+        p = dt / seg_len
+        punch = beat_bounce(dt, 0.055, 0.12)
+
+        if seg_idx == 0:                          # 2.14-3.21: ДРОП — запрокинутое лицо
+            fr = crop_art((1140.0 - 45.0 * p) / punch, 695.0, 625.0)
+        elif seg_idx == 1:                        # 3.21-4.29: EXIT -> (ниже верхней зоны UI TikTok)
+            vh = (950.0 - 30.0 * p) / punch
+            fr = crop_art(vh, 1116.0, vh / 2.0 - 55.0)
+            ceil = np.clip((gy - 85.0) / 80.0, 0.0, 1.0)[..., None]
+            fr *= ceil
+        elif seg_idx == 2:                        # 4.29-5.36: крылышки, красный платок, лёд и шампанское
+            fr = crop_art((1300.0 - 40.0 * p) / punch, 800.0, 1570.0)
+        elif seg_idx == 3:                        # 5.36-6.43: тележка SMILE SERVICE REPEAT
+            fr = crop_art((1160.0 - 45.0 * p) / punch, 1046.0, 2475.0)
+        elif seg_idx == 4:                        # 6.43-7.50: макро мазков лица/губ
+            fr = crop_art((540.0 - 28.0 * p) / punch, 695.0, 590.0, sharp_boost=0.28)
+        else:                                     # 7.50-8.57: макро выцарапанной надписи
+            fr = crop_art((575.0 - 30.0 * p) / punch, 1135.0, 2515.0, sharp_boost=0.28)
+
+        # Короткая чистая вспышка на дропе и при сменах
+        if dt < 0.055:
+            k = 1.0 - dt / 0.055
+            if seg_idx == 0:
+                fr = fr * (1.0 - 0.35 * k) + 255.0 * 0.35 * k
+            else:
+                fr *= (1.0 - 0.16 * k)
+
+        # Дерзкая плашка-ответ «WHAT I ACTUALLY PAINTED:» на первом ударе дропа (2.14 -> 3.35)
+        if t < BAR + 2.3 * BEAT:
+            a_ans = 1.0 - sm(BAR + 1.85 * BEAT, BAR + 2.3 * BEAT, t)
+            pill2 = text_tile('WHAT I ACTUALLY PAINTED:', F_OSWALD, 54, 2, (255, 255, 255),
+                              shadow=False, weight=700, pill_bg=(214, 42, 76, 238))
+            fr = overlay_tile(fr, pill2, W / 2, 275, alpha=a_ans, scale=beat_bounce(t - BAR, 0.06, 0.12))
+
+        return np.clip(fr, 0, 255).astype(np.uint8)
+
+    return DUR, BAR, render
+
+
+# ================================================================== ВСПОМОГАТЕЛЬНЫЕ СЦЕНАРИИ (contrast / arttok)
 def blend_shots(t, shots):
-    """Мягкий кросс-диссолв 0.45 с между спокойными планами (без дёрганых склеек)."""
     xf = 0.45
     for idx, (t0, t1, fn) in enumerate(shots):
         if t < t1 or idx == len(shots) - 1:
             fr = fn(t)
             if idx + 1 < len(shots) and t > t1 - xf:
                 q = sm(t1 - xf, t1, t)
-                fr2 = shots[idx + 1][2](t)
-                fr = fr * (1.0 - q) + fr2 * q
+                fr = fr * (1.0 - q) + shots[idx + 1][2](t) * q
             return fr
     return shots[-1][2](t)
 
 
-# ================================================================== СЦЕНАРИЙ Б: КОНТРАСТ
 def make_contrast_renderer():
     BPM = 76
-    BAR = 4 * (60.0 / BPM)                # 3.15789 s
-    DUR = 7 * BAR                         # 22.10526 s
+    BAR = 4 * (60.0 / BPM)
+    DUR = 7 * BAR
 
     def s_face(t):
         p = np.clip(t / BAR, 0.0, 1.0)
@@ -249,11 +372,8 @@ def make_contrast_renderer():
 
     def s_exit(t):
         p = np.clip((t - BAR) / BAR, 0.0, 1.0)
-        # Держим cy = vh/2, чтобы красная табличка EXIT -> целиком оставалась в правом верхнем углу
         vh = 940.0 - 30.0 * p
-        cx = 1118.0 - 8.0 * p
-        cy = vh / 2.0 + 4.0
-        return crop_art(vh, cx, cy)
+        return crop_art(vh, 1118.0 - 8.0 * p, vh / 2.0 + 4.0)
 
     def s_service(t):
         p = np.clip((t - 2 * BAR) / BAR, 0.0, 1.0)
@@ -272,45 +392,21 @@ def make_contrast_renderer():
             fr = overlay_tile(fr, tile, W / 2, 1255, a_tit * 0.90)
         return fr
 
-    def s_outro(t):
-        return render_barh_outro(max(0.0, t - 6 * BAR))
-
     shots = [
         (0.0, BAR, s_face),
         (BAR, 2 * BAR, s_exit),
         (2 * BAR, 3 * BAR, s_service),
         (3 * BAR, 4 * BAR, s_trolley),
         (4 * BAR, 6 * BAR, s_loft),
-        (6 * BAR, DUR, s_outro),
+        (6 * BAR, DUR, lambda t: render_barh_outro(max(0.0, t - 6 * BAR))),
     ]
-
-    def render(t):
-        return np.clip(blend_shots(t, shots), 0, 255).astype(np.uint8)
-
-    return DUR, BAR, render
+    return DUR, BAR, lambda t: np.clip(blend_shots(t, shots), 0, 255).astype(np.uint8)
 
 
-# ================================================================== СЦЕНАРИЙ В: ЧИСТЫЙ ARTTOK
 def make_arttok_renderer():
     BPM = 72
-    BAR = 4 * (60.0 / BPM)                # 3.33333 s
-    DUR = 6 * BAR                         # 20.0000 s
-
-    def s_face(t):
-        p = np.clip(t / BAR, 0.0, 1.0)
-        return crop_art(1150.0 - 38.0 * p, 695.0, 625.0)
-
-    def s_trolley(t):
-        p = np.clip((t - BAR) / BAR, 0.0, 1.0)
-        return crop_art(1200.0 - 42.0 * p, 1044.0, 2445.0 + 30.0 * p)
-
-    def s_macro_eyes(t):
-        p = np.clip((t - 2 * BAR) / (0.5 * BAR), 0.0, 1.0)
-        return crop_art(570.0 - 25.0 * p, 695.0, 590.0, sharp_boost=0.26)
-
-    def s_macro_wings(t):
-        p = np.clip((t - 2.5 * BAR) / (0.5 * BAR), 0.0, 1.0)
-        return crop_art(530.0 - 25.0 * p, 845.0 + 12.0 * p, 1455.0, sharp_boost=0.26)
+    BAR = 4 * (60.0 / BPM)
+    DUR = 6 * BAR
 
     def s_gallery(t):
         p = np.clip((t - 3 * BAR) / (2 * BAR), 0.0, 1.0)
@@ -321,25 +417,18 @@ def make_arttok_renderer():
             fr = overlay_tile(fr, tile, W / 2, 1265, a_tit * 0.88)
         return fr
 
-    def s_outro(t):
-        return render_barh_outro(max(0.0, t - 5 * BAR))
-
     shots = [
-        (0.0, BAR, s_face),
-        (BAR, 2 * BAR, s_trolley),
-        (2 * BAR, 2.5 * BAR, s_macro_eyes),
-        (2.5 * BAR, 3 * BAR, s_macro_wings),
+        (0.0, BAR, lambda t: crop_art(1150.0 - 38.0 * np.clip(t / BAR, 0, 1), 695.0, 625.0)),
+        (BAR, 2 * BAR, lambda t: crop_art(1200.0 - 42.0 * np.clip((t - BAR) / BAR, 0, 1), 1044.0, 2445.0 + 30.0 * np.clip((t - BAR) / BAR, 0, 1))),
+        (2 * BAR, 2.5 * BAR, lambda t: crop_art(570.0 - 25.0 * np.clip((t - 2 * BAR) / (0.5 * BAR), 0, 1), 695.0, 590.0, 0.26)),
+        (2.5 * BAR, 3 * BAR, lambda t: crop_art(530.0 - 25.0 * np.clip((t - 2.5 * BAR) / (0.5 * BAR), 0, 1), 845.0 + 12.0 * np.clip((t - 2.5 * BAR) / (0.5 * BAR), 0, 1), 1455.0, 0.26)),
         (3 * BAR, 5 * BAR, s_gallery),
-        (5 * BAR, DUR, s_outro),
+        (5 * BAR, DUR, lambda t: render_barh_outro(max(0.0, t - 5 * BAR))),
     ]
-
-    def render(t):
-        return np.clip(blend_shots(t, shots), 0, 255).astype(np.uint8)
-
-    return DUR, BAR, render
+    return DUR, BAR, lambda t: np.clip(blend_shots(t, shots), 0, 255).astype(np.uint8)
 
 
-def encode_cut(name, dur, audio_path, out_mp4, out_silent, render_fn, bar, board_name, board_labels):
+def encode_cut(name, dur, audio_path, out_mp4, out_silent, render_fn, board_name, board_labels):
     ff = imageio_ffmpeg.get_ffmpeg_exe()
     raw = f'work/{name}_raw.mp4'
     cmd = [ff, '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'bgr24',
@@ -365,7 +454,6 @@ def encode_cut(name, dur, audio_path, out_mp4, out_silent, render_fn, bar, board
                     '-movflags', '+faststart', out_silent], check=True)
     os.remove(raw)
 
-    # Контакт-лист сториборда (8 ключевых кадров)
     cap = cv2.VideoCapture(out_mp4)
     tiles = []
     for ts, lbl in board_labels:
@@ -374,7 +462,7 @@ def encode_cut(name, dur, audio_path, out_mp4, out_silent, render_fn, bar, board
         if ok:
             th = cv2.resize(fr, (360, 640), interpolation=cv2.INTER_AREA)
             cv2.rectangle(th, (0, 0), (360, 36), (18, 18, 22), -1)
-            cv2.putText(th, lbl, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.56, (235, 235, 235), 2, cv2.LINE_AA)
+            cv2.putText(th, lbl, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (235, 235, 235), 2, cv2.LINE_AA)
             tiles.append(th)
     cap.release()
     gap = np.full((640, 12, 3), 28, np.uint8)
@@ -386,52 +474,28 @@ def encode_cut(name, dur, audio_path, out_mp4, out_silent, render_fn, bar, board
 
 
 def main():
-    only = sys.argv[1] if len(sys.argv) > 1 else 'all'
+    only = sys.argv[1] if len(sys.argv) > 1 else 'viral'
     os.makedirs('work', exist_ok=True)
-    if not (os.path.exists('audio/BARH_contrast_76bpm.wav') and os.path.exists('audio/BARH_arttok_72bpm.wav')):
-        subprocess.run([sys.executable, 'make_audio.py'], check=True)
-
-    if only in ('all', 'contrast'):
-        dur_b, bar_b, fn_b = make_contrast_renderer()
+    if only in ('all', 'viral'):
+        if not os.path.exists('audio/BARH_viral_112bpm.wav'):
+            subprocess.run([sys.executable, 'make_audio.py'], check=True)
+        dur_v, _, fn_v = make_viral_renderer()
         encode_cut(
-            'contrast', dur_b, 'audio/BARH_contrast_76bpm.wav',
-            'SMILE_SERVICE_REPEAT_BARH_contrast.mp4',
-            'SMILE_SERVICE_REPEAT_BARH_contrast_silent.mp4',
-            fn_b, bar_b, 'storyboard_contrast.jpg',
+            'viral', dur_v, 'audio/BARH_viral_112bpm.wav',
+            'SMILE_SERVICE_REPEAT_BARH_viral.mp4',
+            'SMILE_SERVICE_REPEAT_BARH_viral_silent.mp4',
+            fn_v, 'storyboard_viral.jpg',
             [
-                (1.2, '01.20 HOOK FACE'),
-                (4.5, '04.50 EXIT ->'),
-                (7.8, '07.80 WINGS & ICE'),
-                (11.0, '11.00 TROLLEY'),
-                (14.5, '14.50 LOFT 46x130'),
-                (17.5, '17.50 LOFT TITLE'),
-                (19.5, '19.50 BARH WRITE'),
-                (21.0, '21.00 BARH HOLD'),
+                (0.70, '00.70 FAKE AD'),
+                (1.93, '01.93 SCRATCH GLITCH'),
+                (2.40, '02.40 DROP + REALITY'),
+                (3.60, '03.60 EXIT ->'),
+                (5.70, '05.70 TROLLEY'),
+                (9.30, '09.30 LOFT 46x130'),
+                (11.40, '11.40 GALLERY 46x130'),
+                (14.10, '14.10 BARH LOGO'),
             ],
         )
-
-    if only in ('all', 'arttok'):
-        dur_c, bar_c, fn_c = make_arttok_renderer()
-        encode_cut(
-            'arttok', dur_c, 'audio/BARH_arttok_72bpm.wav',
-            'SMILE_SERVICE_REPEAT_BARH_arttok.mp4',
-            'SMILE_SERVICE_REPEAT_BARH_arttok_silent.mp4',
-            fn_c, bar_c, 'storyboard_arttok.jpg',
-            [
-                (1.2, '01.20 CLEAN FACE'),
-                (4.8, '04.80 TROLLEY'),
-                (7.4, '07.40 MACRO EYES'),
-                (9.1, '09.10 MACRO WINGS'),
-                (11.8, '11.80 GALLERY 46x130'),
-                (14.8, '14.80 GALLERY TITLE'),
-                (17.2, '17.20 BARH WRITE'),
-                (18.9, '18.90 BARH HOLD'),
-            ],
-        )
-
-    ff = imageio_ffmpeg.get_ffmpeg_exe()
-    subprocess.run([ff, '-y', '-loglevel', 'error', '-ss', '1.20', '-i',
-                    'SMILE_SERVICE_REPEAT_BARH_arttok.mp4', '-frames:v', '1', 'cover.png'], check=True)
 
 
 if __name__ == '__main__':
