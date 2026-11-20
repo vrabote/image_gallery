@@ -1,11 +1,11 @@
 """Сборка финального TikTok-ролика 9:16 для BARH — «SMILE SERVICE REPEAT» (46 × 130 см).
 
-Меланхоличный, умиротворённый и цельный монтаж (92 BPM, 15.65 с):
-  - старт сразу с картины в тёмном интерьере (без самолёта и суеты)
-  - ни одного рывка, дрожания или вспышки — только плавное кинематографичное движение
-  - единый неспешный проезд по всей ширине полотна сверху донизу (1384 -> 1080, без тесных кропов)
-  - показ реального масштаба 46×130 см в двух интерьерах без пустых полей
-  - финал: крупный фирменный рукописный белый логотип BARH на чёрном фоне
+Меланхоличный, ультрасовременный и эстетически выверенный монтаж (92 BPM, 15.65 с):
+  - Старт сразу с картины 46×130 см в современном тёмном пентхаусе с панорамой мегаполиса («01 · TWILIGHT PENTHOUSE»)
+  - Деликатный текстовый хук «the quiet after 10,000 smiles.» над полотном + живые пылинки в луче света
+  - Единый плавный проезд по всей ширине картины сверху донизу (1384 -> 1080, без рывков и тесных кропов)
+  - Показ в ультрасовременной светлой резиденции («02 · DAYLIGHT RESIDENCE») с живым движением солнечного луча
+  - Финал: крупный фирменный рукописный белый логотип BARH на чистом чёрном фоне
 """
 import os
 import subprocess
@@ -25,8 +25,8 @@ DUR = 6 * BAR                 # 15.652174 s
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
-LOFT_PATH = 'work/interior_loft.png'
-GALLERY_PATH = 'work/interior_gallery.png'
+PENTHOUSE_PATH = 'work/interior_penthouse.png'
+MODERN_GAL_PATH = 'work/interior_modern_gallery.png'
 AUDIO_PATH = 'audio/BARH_melancholic_92bpm.wav'
 OUT_MP4 = 'SMILE_SERVICE_REPEAT_BARH.mp4'
 OUT_BOARD = 'storyboard.jpg'
@@ -51,10 +51,25 @@ LOGO_ALPHA = LOGO_RS[..., 3:4] / 255.0
 gy, gx = np.mgrid[0:H, 0:W].astype(np.float32)
 VIG = (1.0 - 0.16 * (((gx - W / 2) / (W / 2)) ** 2 + ((gy - H / 2) / (H / 2)) ** 2) * 0.50)[..., None].astype(np.float32)
 
+# Детерминированные тончайшие пылинки света для глубины кинокамеры
+_rng = np.random.default_rng(2026)
+MOTES = [
+    (
+        _rng.uniform(260, 820),   # x0
+        _rng.uniform(380, 1200),  # y0
+        _rng.uniform(1.0, 2.0),   # radius (тончайшие)
+        _rng.uniform(-7, 7),      # vx
+        _rng.uniform(-12, -3),    # vy
+        _rng.uniform(0.08, 0.18), # alpha (едва заметные)
+        _rng.uniform(0, 6.28),    # phase
+    )
+    for _ in range(22)
+]
+
 
 def build_mounted_room(room_path, crop_box, target_h_1080, center_xy_1080,
                        shadow_dx, shadow_dy, light_mode, scale_hi=1.5):
-    """Рендерит интерьер в 1.5x разрешении с картиной в точных пропорциях 46x130 см."""
+    """Рендерит ультрасовременный интерьер в 1.5x с картиной в точных пропорциях 46x130 см."""
     rw = int(W * scale_hi)
     rh = int(H * scale_hi)
     rm = cv2.imread(room_path)
@@ -72,27 +87,30 @@ def build_mounted_room(room_path, crop_box, target_h_1080, center_xy_1080,
     yy, xx = np.mgrid[0:ph, 0:pw].astype(np.float32)
     ny = yy / max(1, ph - 1)
     nx = xx / max(1, pw - 1)
-    if light_mode == 'loft':
-        spot = 0.89 + 0.13 * np.exp(-((nx - 0.5) * 1.4) ** 2 - ((ny - 0.28) * 1.1) ** 2)
+
+    if light_mode == 'penthouse':
+        # Тёплый верхний cove-свет + деликатный холодный рефлекс от панорамного окна слева
+        spot = 0.87 + 0.16 * np.exp(-((nx - 0.50) * 1.35) ** 2 - ((ny - 0.22) * 1.15) ** 2)
         canvas *= spot[..., None]
-        canvas[..., 2] *= 1.02
-        canvas[..., 0] *= 0.96
-        side_col = np.array([28, 30, 34], np.float32)
+        canvas[..., 2] *= 1.025
+        canvas[..., 0] *= 0.96 + 0.04 * (1.0 - nx)
+        side_col = np.array([34, 34, 36], np.float32)
     else:
-        side = 0.94 + 0.07 * (1.0 - nx) - 0.03 * ny
-        canvas *= side[..., None]
-        canvas[..., 2] *= 1.02
-        canvas[..., 0] *= 0.97
-        side_col = np.array([156, 158, 160], np.float32)
+        # Золотой дневной свет из окна справа и диагональный солнечный блик сверху
+        sun = 0.92 + 0.11 * nx * np.exp(-((ny - 0.25) * 1.4) ** 2)
+        canvas *= sun[..., None]
+        canvas[..., 2] *= 1.03
+        canvas[..., 0] *= 0.96
+        side_col = np.array([154, 152, 148], np.float32)
 
     sh_mask = np.zeros((rh, rw), np.float32)
     sh_mask[py:py + ph, px:px + pw] = 1.0
     sdx = int(round(shadow_dx * scale_hi))
     sdy = int(round(shadow_dy * scale_hi))
     contact = cv2.GaussianBlur(np.roll(sh_mask, (int(4 * scale_hi), int(2 * scale_hi)), axis=(0, 1)), (0, 0), 5.0 * scale_hi) * 0.48
-    cast = cv2.GaussianBlur(np.roll(sh_mask, (sdy, sdx), axis=(0, 1)), (0, 0), 22.0 * scale_hi) * 0.38
+    cast = cv2.GaussianBlur(np.roll(sh_mask, (sdy, sdx), axis=(0, 1)), (0, 0), 22.0 * scale_hi) * 0.36
     deep = cv2.GaussianBlur(np.roll(sh_mask, (sdy + int(10 * scale_hi), sdx + int(5 * scale_hi)), axis=(0, 1)), (0, 0), 42.0 * scale_hi) * 0.20
-    total_sh = np.clip(contact + cast * 0.72 + deep * 0.5, 0.0, 0.74)[..., None]
+    total_sh = np.clip(contact + cast * 0.72 + deep * 0.5, 0.0, 0.72)[..., None]
     out = rm * (1.0 - total_sh)
 
     ew = int(round(3 * scale_hi))
@@ -104,27 +122,27 @@ def build_mounted_room(room_path, crop_box, target_h_1080, center_xy_1080,
         out[py + ph:py + ph + ew, px - ew:px + pw] = side_col * 0.68
 
     out[py:py + ph, px:px + pw] = canvas
-    out[py:py + 2, px:px + pw] = np.clip(out[py:py + 2, px:px + pw] * 1.10, 0, 255)
+    out[py:py + 2, px:px + pw] = np.clip(out[py:py + 2, px:px + pw] * 1.12, 0, 255)
     return np.clip(out, 0, 255).astype(np.float32)
 
 
-print('Подготовка интерьеров 46x130 см...')
-ROOM_LOFT = build_mounted_room(
-    LOFT_PATH,
-    crop_box=(48, 120, 720, 1315),
-    target_h_1080=720,
-    center_xy_1080=(540, 815),
-    shadow_dx=4,
-    shadow_dy=18,
-    light_mode='loft',
+print('Подготовка современных интерьеров 46x130 см...')
+ROOM_PENTHOUSE = build_mounted_room(
+    PENTHOUSE_PATH,
+    crop_box=(36, 48, 740, 1298),
+    target_h_1080=740,
+    center_xy_1080=(543, 855),
+    shadow_dx=5,
+    shadow_dy=16,
+    light_mode='penthouse',
 )
-ROOM_GALLERY = build_mounted_room(
-    GALLERY_PATH,
-    crop_box=(20, 50, 740, 1330),
-    target_h_1080=700,
-    center_xy_1080=(570, 825),
-    shadow_dx=15,
-    shadow_dy=13,
+ROOM_MODERN_GAL = build_mounted_room(
+    MODERN_GAL_PATH,
+    crop_box=(24, 52, 744, 1332),
+    target_h_1080=736,
+    center_xy_1080=(539, 825),
+    shadow_dx=-16,
+    shadow_dy=14,
     light_mode='gallery',
 )
 
@@ -143,6 +161,19 @@ def zoom_room(room_hi, zoom, cy_shift=0.0):
                   [0.0, s, H / 2.0 - s * cy]], np.float32)
     return cv2.warpAffine(room_hi, M, (W, H), flags=cv2.INTER_LANCZOS4,
                           borderMode=cv2.BORDER_REPLICATE)
+
+
+def add_dust_motes(fr, t, warmth=(215, 232, 248)):
+    """Тончайшие плавающие пылинки в свете софита/окна (добавляет глубину кинокамеры)."""
+    ov = np.zeros((H, W, 3), np.float32)
+    for x0, y0, r, vx, vy, a, ph in MOTES:
+        x = int(round(x0 + vx * t + 6.0 * np.sin(0.6 * t + ph)))
+        y = int(round(y0 + vy * t))
+        if 20 < x < W - 20 and 20 < y < H - 20:
+            pulse = 0.65 + 0.35 * np.sin(1.2 * t + ph)
+            cv2.circle(ov, (x, y), max(1, int(round(r))), (warmth[0] * a * pulse, warmth[1] * a * pulse, warmth[2] * a * pulse), -1, cv2.LINE_AA)
+    ov = cv2.GaussianBlur(ov, (0, 0), 1.6)
+    return np.clip(fr + ov, 0, 255)
 
 
 def full_width_art(cy):
@@ -174,7 +205,7 @@ def text_tile(text, font_path, size, tracking, color, shadow=True):
     if shadow:
         x = float(pad_x)
         for ch, cw in zip(text, widths):
-            d.text((x + 2, pad_y + 2), ch, font=f, fill=(0, 0, 0, 185))
+            d.text((x + 2, pad_y + 2), ch, font=f, fill=(0, 0, 0, 195))
             x += cw + tracking
     x = float(pad_x)
     for ch, cw in zip(text, widths):
@@ -198,24 +229,37 @@ def overlay_tile(frame, tile, cx, cy, alpha=1.0):
     return frame
 
 
-# Сцены с мягкими бархатными перетеканиями (без единого рывка)
-T_LOFT_END = 4.20
+T_LOFT_END = 4.25
 T_PAN_END = 10.45
 T_GAL_END = 13.45
 
 
-def scene_loft(t):
+def scene_penthouse(t):
     p = np.clip(t / (T_LOFT_END + 0.5), 0.0, 1.0)
-    fr = zoom_room(ROOM_LOFT, 1.00 + 0.075 * p, cy_shift=-10.0 * p)
-    a_sub = sm(0.25, 0.90, t) * (1.0 - sm(T_LOFT_END - 0.80, T_LOFT_END - 0.15, t))
-    if a_sub > 0.005:
-        tile = text_tile('the quiet after the shift.', F_SERIF_IT, 50, 1, (238, 234, 224), shadow=True)
-        fr = overlay_tile(fr, tile, W / 2, 1255, a_sub * 0.92)
+    fr = zoom_room(ROOM_PENTHOUSE, 1.00 + 0.070 * p, cy_shift=-10.0 * p)
+    fr = add_dust_motes(fr, t, warmth=(200, 224, 248))
+
+    # Мягкое появление из темноты в первые 0.28 с для бесшовного цикла TikTok
+    if t < 0.28:
+        fr *= sm(0.0, 0.28, t)
+
+    # Верхний эмоциональный хук на ровной тёмной стене ниже яркой LED-подсветки
+    a_hook = sm(0.18, 0.72, t) * (1.0 - sm(T_LOFT_END - 0.85, T_LOFT_END - 0.15, t))
+    if a_hook > 0.005:
+        eyebrow = text_tile('BARH  ·  “SMILE SERVICE REPEAT”  ·  46 × 130 CM', F_MONO, 19, 4, (208, 204, 196), shadow=True)
+        hook = text_tile('the quiet after 10,000 smiles.', F_SERIF_IT, 54, 1, (246, 243, 236), shadow=True)
+        fr = overlay_tile(fr, eyebrow, W / 2, 350, a_hook * 0.88)
+        fr = overlay_tile(fr, hook, W / 2, 408, a_hook * 0.96)
+
+    # Стильная подпись пространства 01 (для вовлечения и дебатов 01 vs 02 в комментариях)
+    a_tag = sm(0.45, 1.05, t) * (1.0 - sm(T_LOFT_END - 0.85, T_LOFT_END - 0.15, t))
+    if a_tag > 0.005:
+        tag1 = text_tile('01  ·  TWILIGHT PENTHOUSE', F_MONO, 22, 5, (232, 228, 220), shadow=True)
+        fr = overlay_tile(fr, tag1, W / 2, 1290, a_tag * 0.90)
     return fr
 
 
 def scene_pan(t):
-    # Единый плавный неспешный проезд по всей ширине полотна сверху донизу
     p = np.clip((t - (T_LOFT_END - 0.70)) / ((T_PAN_END + 0.50) - (T_LOFT_END - 0.70)), 0.0, 1.0)
     q = 0.5 - 0.5 * np.cos(np.pi * p)
     vh = H * (SW / W)
@@ -224,13 +268,24 @@ def scene_pan(t):
     return full_width_art(cy0 + (cy1 - cy0) * q)
 
 
-def scene_gallery(t):
+def scene_modern_gallery(t):
     p = np.clip((t - (T_PAN_END - 0.60)) / (T_GAL_END - (T_PAN_END - 0.60)), 0.0, 1.0)
-    fr = zoom_room(ROOM_GALLERY, 1.00 + 0.055 * p, cy_shift=-8.0 * p)
-    a_lbl = sm(T_PAN_END + 0.25, T_PAN_END + 0.85, t) * (1.0 - sm(T_GAL_END - 0.75, T_GAL_END - 0.15, t))
-    if a_lbl > 0.005:
-        lbl = text_tile('“SMILE SERVICE REPEAT”  ·  46 × 130 CM', F_MONO, 22, 4, (45, 42, 38), shadow=False)
-        fr = overlay_tile(fr, lbl, W / 2, 1265, a_lbl * 0.90)
+    fr = zoom_room(ROOM_MODERN_GAL, 1.00 + 0.055 * p, cy_shift=-8.0 * p)
+
+    # Живой золотой солнечный луч, медленно скользящий по стене и картине
+    beam_center = 0.34 + 0.14 * p
+    diag = (gy / H) * 0.85 + (1.0 - gx / W) * 0.55
+    beam = np.exp(-((diag - beam_center) / 0.16) ** 2) * (0.55 + 0.45 * np.sin(np.pi * p))
+    beam_mask = np.clip((beam - 0.15) * 1.15, 0.0, 1.0)[..., None]
+    fr = np.clip(fr + beam_mask * np.array([10.0, 16.0, 22.0], np.float32), 0, 255)
+    fr = add_dust_motes(fr, t - T_PAN_END + 2.0, warmth=(200, 230, 255))
+
+    a_tag = sm(T_PAN_END + 0.25, T_PAN_END + 0.80, t) * (1.0 - sm(T_GAL_END - 0.75, T_GAL_END - 0.15, t))
+    if a_tag > 0.005:
+        tag2 = text_tile('02  ·  DAYLIGHT RESIDENCE', F_MONO, 22, 5, (48, 45, 40), shadow=False)
+        sub2 = text_tile('46 × 130 CM', F_MONO, 19, 4, (86, 80, 72), shadow=False)
+        fr = overlay_tile(fr, tag2, W / 2, 1255, a_tag * 0.92)
+        fr = overlay_tile(fr, sub2, W / 2, 1296, a_tag * 0.82)
     return fr
 
 
@@ -252,7 +307,7 @@ def scene_barh(t):
 def render_frame(t):
     xf = 0.85
     if t < T_LOFT_END:
-        fr = scene_loft(t)
+        fr = scene_penthouse(t)
         if t > T_LOFT_END - xf:
             q = sm(T_LOFT_END - xf, T_LOFT_END, t)
             fr = fr * (1.0 - q) + scene_pan(t) * q
@@ -260,9 +315,9 @@ def render_frame(t):
         fr = scene_pan(t)
         if t > T_PAN_END - xf:
             q = sm(T_PAN_END - xf, T_PAN_END, t)
-            fr = fr * (1.0 - q) + scene_gallery(t) * q
+            fr = fr * (1.0 - q) + scene_modern_gallery(t) * q
     elif t < T_GAL_END:
-        fr = scene_gallery(t)
+        fr = scene_modern_gallery(t)
         if t > T_GAL_END - 0.55:
             q = sm(T_GAL_END - 0.55, T_GAL_END, t)
             fr = fr * (1.0 - q) + scene_barh(t) * q
@@ -302,13 +357,13 @@ def main():
     cv2.imwrite(OUT_COVER, render_frame(1.80))
     cap = cv2.VideoCapture(OUT_MP4)
     stamps = [
-        (1.20, '01.20 LOFT START 46x130'),
-        (3.20, '03.20 LOFT GLIDE'),
-        (4.80, '04.80 PAINTING TOP'),
-        (6.40, '06.40 PAINTING MID'),
-        (8.00, '08.00 SMILE SERVICE REPEAT'),
+        (1.20, '01.20 PENTHOUSE 01'),
+        (3.10, '03.10 PENTHOUSE HOOK'),
+        (5.00, '05.00 PAINTING TOP'),
+        (6.60, '06.60 PAINTING MID'),
+        (8.10, '08.10 SMILE SERVICE'),
         (9.50, '09.50 PAINTING LOWER'),
-        (11.60, '11.60 GALLERY 46x130'),
+        (11.60, '11.60 RESIDENCE 02'),
         (14.80, '14.80 BARH LOGO'),
     ]
     tiles = []
