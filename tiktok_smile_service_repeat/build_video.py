@@ -1,13 +1,11 @@
 """Сборка финального TikTok-ролика 9:16 для BARH — «SMILE SERVICE REPEAT» (46 × 130 см).
 
-Сценарий (114 BPM, 14.74 с, без уродливых сверхкрупных кропов и без пустых полей):
-  0.00 – 2.11 с  Пролёт самолёта в закатных облаках («WHAT A 12-HOUR FLIGHT ACTUALLY FEELS LIKE»)
-                 + бортовой сигнал «DING-DONG» -> пауза перед дропом
-  2.11 – 4.21 с  Дроп! Полная ширина холста (верх): окно самолёта, EXIT->, лицо, шампанское
-  4.21 – 6.32 с  Переключение в бит: полная ширина холста (низ): тележка SMILE SERVICE REPEAT, подпись
-  6.32 – 9.47 с  Полный показ картины 46×130 см в тёмном лофте под софитом
-  9.47 – 12.63 с Полный показ картины 46×130 см в светлой минималистичной галерее
- 12.63 – 14.74 с Финал: крупный фирменный рукописный логотип BARH белым на чистом чёрном фоне
+Меланхоличный, умиротворённый и цельный монтаж (92 BPM, 15.65 с):
+  - старт сразу с картины в тёмном интерьере (без самолёта и суеты)
+  - ни одного рывка, дрожания или вспышки — только плавное кинематографичное движение
+  - единый неспешный проезд по всей ширине полотна сверху донизу (1384 -> 1080, без тесных кропов)
+  - показ реального масштаба 46×130 см в двух интерьерах без пустых полей
+  - финал: крупный фирменный рукописный белый логотип BARH на чёрном фоне
 """
 import os
 import subprocess
@@ -20,33 +18,27 @@ from PIL import Image, ImageDraw, ImageFont
 
 W, H = 1080, 1920
 FPS = 30
-BPM = 114.0
-BEAT = 60.0 / BPM             # 0.526316 s
-BAR = 4 * BEAT                # 2.105263 s
-DUR = 7 * BAR                 # 14.736842 s
+BPM = 92.0
+BEAT = 60.0 / BPM             # 0.652174 s
+BAR = 4 * BEAT                # 2.608696 s
+DUR = 6 * BAR                 # 15.652174 s
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
-PLANE_PATH = 'work/flying_plane.png'
 LOFT_PATH = 'work/interior_loft.png'
 GALLERY_PATH = 'work/interior_gallery.png'
-AUDIO_PATH = 'audio/BARH_sky_114bpm.wav'
+AUDIO_PATH = 'audio/BARH_melancholic_92bpm.wav'
 OUT_MP4 = 'SMILE_SERVICE_REPEAT_BARH.mp4'
 OUT_BOARD = 'storyboard.jpg'
 OUT_COVER = 'cover.png'
 
-F_OSWALD = 'fonts/Oswald-Variable.ttf'
+F_SERIF_IT = 'fonts/InstrumentSerif-Italic.ttf'
 F_MONO = 'fonts/IBMPlexMono-Bold.ttf'
 
 SRC = cv2.imread(ART_PATH)
 if SRC is None:
     raise SystemExit(f'нет файла {ART_PATH}')
 SH, SW = SRC.shape[:2]
-
-PLANE = cv2.imread(PLANE_PATH)
-if PLANE is None:
-    raise SystemExit(f'нет файла {PLANE_PATH}')
-PLANE = cv2.resize(PLANE, (W, H), interpolation=cv2.INTER_LANCZOS4).astype(np.float32)
 
 LOGO = cv2.imread(LOGO_PATH, cv2.IMREAD_UNCHANGED)
 if LOGO is None:
@@ -142,10 +134,6 @@ def sm(a, b, t):
     return float(q * q * (3.0 - 2.0 * q))
 
 
-def beat_bounce(dt, amp=0.025, tau=0.12):
-    return 1.0 + amp * np.exp(-(dt / tau) ** 2)
-
-
 def zoom_room(room_hi, zoom, cy_shift=0.0):
     rh, rw = room_hi.shape[:2]
     s = (W / rw) * zoom
@@ -157,26 +145,24 @@ def zoom_room(room_hi, zoom, cy_shift=0.0):
                           borderMode=cv2.BORDER_REPLICATE)
 
 
-def full_width_art(cy, zoom=1.0):
-    """Широкий благородный кадр на всю ширину холста (1384 -> 1080, без уродливого макро)."""
-    s = (W / SW) * zoom
+def full_width_art(cy):
+    """Спокойный кадр на всю ширину холста (1384 -> 1080) без рывков и тесных кропов."""
+    s = W / SW
     vh = H / s
     cy_clamped = float(np.clip(cy, vh / 2.0, SH - vh / 2.0))
-    M = np.array([[s, 0.0, W / 2.0 - s * (SW / 2.0)],
+    M = np.array([[s, 0.0, 0.0],
                   [0.0, s, H / 2.0 - s * cy_clamped]], np.float32)
-    fr = cv2.warpAffine(SRC, M, (W, H), flags=cv2.INTER_AREA if s < 1.0 else cv2.INTER_LANCZOS4,
+    fr = cv2.warpAffine(SRC, M, (W, H), flags=cv2.INTER_AREA,
                         borderMode=cv2.BORDER_REPLICATE).astype(np.float32)
-    fr[..., 2] *= 1.015
-    fr = (fr - 118.0) * 1.04 + 118.0
+    fr[..., 2] *= 1.012
+    fr = (fr - 118.0) * 1.03 + 118.0
     fr *= VIG
     return fr
 
 
 @lru_cache(maxsize=32)
-def text_tile(text, font_path, size, tracking, color, shadow=True, weight=0):
+def text_tile(text, font_path, size, tracking, color, shadow=True):
     f = ImageFont.truetype(font_path, size)
-    if weight:
-        f.set_variation_by_axes([weight])
     probe = ImageDraw.Draw(Image.new('RGBA', (4, 4)))
     widths = [probe.textlength(ch, font=f) for ch in text]
     asc, desc = f.getmetrics()
@@ -188,7 +174,7 @@ def text_tile(text, font_path, size, tracking, color, shadow=True, weight=0):
     if shadow:
         x = float(pad_x)
         for ch, cw in zip(text, widths):
-            d.text((x + 3, pad_y + 3), ch, font=f, fill=(0, 0, 0, 210))
+            d.text((x + 2, pad_y + 2), ch, font=f, fill=(0, 0, 0, 185))
             x += cw + tracking
     x = float(pad_x)
     for ch, cw in zip(text, widths):
@@ -212,14 +198,51 @@ def overlay_tile(frame, tile, cx, cy, alpha=1.0):
     return frame
 
 
-def render_barh_outro(dt):
+# Сцены с мягкими бархатными перетеканиями (без единого рывка)
+T_LOFT_END = 4.20
+T_PAN_END = 10.45
+T_GAL_END = 13.45
+
+
+def scene_loft(t):
+    p = np.clip(t / (T_LOFT_END + 0.5), 0.0, 1.0)
+    fr = zoom_room(ROOM_LOFT, 1.00 + 0.075 * p, cy_shift=-10.0 * p)
+    a_sub = sm(0.25, 0.90, t) * (1.0 - sm(T_LOFT_END - 0.80, T_LOFT_END - 0.15, t))
+    if a_sub > 0.005:
+        tile = text_tile('the quiet after the shift.', F_SERIF_IT, 50, 1, (238, 234, 224), shadow=True)
+        fr = overlay_tile(fr, tile, W / 2, 1255, a_sub * 0.92)
+    return fr
+
+
+def scene_pan(t):
+    # Единый плавный неспешный проезд по всей ширине полотна сверху донизу
+    p = np.clip((t - (T_LOFT_END - 0.70)) / ((T_PAN_END + 0.50) - (T_LOFT_END - 0.70)), 0.0, 1.0)
+    q = 0.5 - 0.5 * np.cos(np.pi * p)
+    vh = H * (SW / W)
+    cy0 = vh / 2.0
+    cy1 = SH - vh / 2.0
+    return full_width_art(cy0 + (cy1 - cy0) * q)
+
+
+def scene_gallery(t):
+    p = np.clip((t - (T_PAN_END - 0.60)) / (T_GAL_END - (T_PAN_END - 0.60)), 0.0, 1.0)
+    fr = zoom_room(ROOM_GALLERY, 1.00 + 0.055 * p, cy_shift=-8.0 * p)
+    a_lbl = sm(T_PAN_END + 0.25, T_PAN_END + 0.85, t) * (1.0 - sm(T_GAL_END - 0.75, T_GAL_END - 0.15, t))
+    if a_lbl > 0.005:
+        lbl = text_tile('“SMILE SERVICE REPEAT”  ·  46 × 130 CM', F_MONO, 22, 4, (45, 42, 38), shadow=False)
+        fr = overlay_tile(fr, lbl, W / 2, 1265, a_lbl * 0.90)
+    return fr
+
+
+def scene_barh(t):
+    dt = max(0.0, t - T_GAL_END)
     frame = np.zeros((H, W, 3), np.float32)
-    q = np.clip((dt - 0.03) / 0.40, 0.0, 1.0)
+    q = np.clip((dt - 0.05) / 0.85, 0.0, 1.0)
     q = q * q * (3.0 - 2.0 * q)
     cols = np.arange(LW, dtype=np.float32)[None, :, None]
     edge = LW * q * 1.18 - 0.18 * LW
     wipe = np.clip((edge - cols) / (0.18 * LW), 0.0, 1.0)
-    fade = np.clip(dt / 0.08, 0.0, 1.0)
+    fade = np.clip(dt / 0.25, 0.0, 1.0)
     x0 = (W - LW) // 2
     y0 = (H - LH) // 2 - 30
     frame[y0:y0 + LH, x0:x0 + LW] = 255.0 * LOGO_ALPHA * wipe * fade
@@ -227,77 +250,25 @@ def render_barh_outro(dt):
 
 
 def render_frame(t):
-    # ---------------- BAR 0 (0.00 - 2.11 с): ПРОЛЁТ САМОЛЁТА В ЗАКАТНОМ НЕБЕ
-    if t < BAR:
-        if t >= 2.05:
-            return np.zeros((H, W, 3), np.uint8)
-        p = t / BAR
-        # Лёгкий кинематографический пролёт/трекинг за самолётом
-        z = 1.02 + 0.13 * p
-        cx = W * (0.48 + 0.04 * p)
-        cy = H * (0.52 - 0.04 * p)
-        M = np.array([[z, 0.0, W / 2.0 - z * cx],
-                      [0.0, z, H / 2.0 - z * cy]], np.float32)
-        fr = cv2.warpAffine(PLANE, M, (W, H), flags=cv2.INTER_LANCZOS4,
-                            borderMode=cv2.BORDER_REPLICATE)
-        # Мягкий всплеск золотого света на моменте сигнала «DING-DONG» (1.54-2.05)
-        if t >= 1.54:
-            flash = np.exp(-((t - 1.56) / 0.12) ** 2) * 18.0
-            fr = np.clip(fr + flash, 0, 255)
-        t1 = text_tile('WHAT A 12-HOUR FLIGHT', F_OSWALD, 58, 3, (248, 246, 242), shadow=True, weight=600)
-        t2 = text_tile('ACTUALLY FEELS LIKE', F_OSWALD, 58, 3, (248, 246, 242), shadow=True, weight=600)
-        a_txt = sm(0.08, 0.30, t) * (1.0 - sm(1.88, 2.04, t))
-        fr = overlay_tile(fr, t1, W / 2, 275, a_txt)
-        fr = overlay_tile(fr, t2, W / 2, 355, a_txt)
-        return np.clip(fr, 0, 255).astype(np.uint8)
-
-    # ---------------- BAR 1 (2.11 - 4.21 с): ДРОП — ПОЛНАЯ ШИРИНА ВЕРХНЕЙ ЧАСТИ КАРТИНЫ
-    if t < 2 * BAR:
-        dt = t - BAR
-        p = dt / BAR
-        bounce = beat_bounce(dt, 0.032, 0.13)
-        fr = full_width_art(cy=1235.0 + 185.0 * p, zoom=bounce)
-        if dt < 0.06:
-            k = 1.0 - dt / 0.06
-            fr = fr * (1.0 - 0.25 * k) + 255.0 * 0.25 * k
-        return np.clip(fr, 0, 255).astype(np.uint8)
-
-    # ---------------- BAR 2 (4.21 - 6.32 с): ПЕРЕКЛЮЧЕНИЕ В БИТ — ПОЛНАЯ ШИРИНА НИЖНЕЙ ЧАСТИ КАРТИНЫ
-    if t < 3 * BAR:
-        dt = t - 2 * BAR
-        p = dt / BAR
-        bounce = beat_bounce(dt, 0.028, 0.12)
-        fr = full_width_art(cy=2490.0 + 185.0 * p, zoom=bounce)
-        if dt < 0.05:
-            fr *= (1.0 - 0.15 * (1.0 - dt / 0.05))
-        return np.clip(fr, 0, 255).astype(np.uint8)
-
-    # ---------------- BAR 3..4.5 (6.32 - 9.47 с): ПОЛНЫЙ ПОКАЗ 46×130 СМ В ТЁМНОМ ЛОФТЕ
-    if t < 4.5 * BAR:
-        dt = t - 3 * BAR
-        p = dt / (1.5 * BAR)
-        bounce = beat_bounce(dt % BEAT, 0.012, 0.10)
-        fr = zoom_room(ROOM_LOFT, (1.00 + 0.065 * p) * bounce, cy_shift=-10.0 * p)
-        if dt < 0.06:
-            fr += 24.0 * (1.0 - dt / 0.06)
-        lbl = text_tile('“SMILE SERVICE REPEAT”  ·  46 × 130 CM', F_MONO, 24, 5, (236, 232, 224), shadow=True)
-        fr = overlay_tile(fr, lbl, W / 2, 1255, 0.94 * sm(0.15, 0.45, dt))
-        return np.clip(fr, 0, 255).astype(np.uint8)
-
-    # ---------------- BAR 4.5..6 (9.47 - 12.63 с): ПОЛНЫЙ ПОКАЗ 46×130 СМ В СВЕТЛОЙ ГАЛЕРЕЕ
-    if t < 6 * BAR:
-        dt = t - 4.5 * BAR
-        p = dt / (1.5 * BAR)
-        bounce = beat_bounce(dt % BEAT, 0.012, 0.10)
-        fr = zoom_room(ROOM_GALLERY, (1.00 + 0.065 * p) * bounce, cy_shift=-8.0 * p)
-        if dt < 0.05:
-            fr += 20.0 * (1.0 - dt / 0.05)
-        lbl = text_tile('BARH  ·  “SMILE SERVICE REPEAT”  ·  46 × 130 CM', F_MONO, 22, 4, (45, 42, 38), shadow=False)
-        fr = overlay_tile(fr, lbl, W / 2, 1265, 0.90 * sm(0.15, 0.45, dt))
-        return np.clip(fr, 0, 255).astype(np.uint8)
-
-    # ---------------- BAR 6 (12.63 - 14.74 с): КРУПНЫЙ БЕЛЫЙ ЛОГОТИП BARH НА ЧЁРНОМ
-    return np.clip(render_barh_outro(t - 6 * BAR), 0, 255).astype(np.uint8)
+    xf = 0.85
+    if t < T_LOFT_END:
+        fr = scene_loft(t)
+        if t > T_LOFT_END - xf:
+            q = sm(T_LOFT_END - xf, T_LOFT_END, t)
+            fr = fr * (1.0 - q) + scene_pan(t) * q
+    elif t < T_PAN_END:
+        fr = scene_pan(t)
+        if t > T_PAN_END - xf:
+            q = sm(T_PAN_END - xf, T_PAN_END, t)
+            fr = fr * (1.0 - q) + scene_gallery(t) * q
+    elif t < T_GAL_END:
+        fr = scene_gallery(t)
+        if t > T_GAL_END - 0.55:
+            q = sm(T_GAL_END - 0.55, T_GAL_END, t)
+            fr = fr * (1.0 - q) + scene_barh(t) * q
+    else:
+        fr = scene_barh(t)
+    return np.clip(fr, 0, 255).astype(np.uint8)
 
 
 def main():
@@ -328,18 +299,17 @@ def main():
                     '-movflags', '+faststart', '-shortest', OUT_MP4], check=True)
     os.remove(raw)
 
-    # Обложка (вид картины в лофте) + раскадровка для проверки
-    cv2.imwrite(OUT_COVER, render_frame(7.50))
+    cv2.imwrite(OUT_COVER, render_frame(1.80))
     cap = cv2.VideoCapture(OUT_MP4)
     stamps = [
-        (0.70, '00.70 FLYING PLANE'),
-        (1.65, '01.65 CABIN CHIME'),
-        (2.40, '02.40 FULL WIDTH TOP'),
-        (3.80, '03.80 UPPER PAINTING'),
-        (5.00, '05.00 LOWER PAINTING'),
-        (7.50, '07.50 LOFT 46x130'),
-        (10.80, '10.80 GALLERY 46x130'),
-        (13.90, '13.90 BARH LOGO'),
+        (1.20, '01.20 LOFT START 46x130'),
+        (3.20, '03.20 LOFT GLIDE'),
+        (4.80, '04.80 PAINTING TOP'),
+        (6.40, '06.40 PAINTING MID'),
+        (8.00, '08.00 SMILE SERVICE REPEAT'),
+        (9.50, '09.50 PAINTING LOWER'),
+        (11.60, '11.60 GALLERY 46x130'),
+        (14.80, '14.80 BARH LOGO'),
     ]
     tiles = []
     for ts, lbl in stamps:
@@ -348,7 +318,7 @@ def main():
         if ok:
             th = cv2.resize(fr, (360, 640), interpolation=cv2.INTER_AREA)
             cv2.rectangle(th, (0, 0), (360, 36), (18, 18, 22), -1)
-            cv2.putText(th, lbl, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (235, 235, 235), 2, cv2.LINE_AA)
+            cv2.putText(th, lbl, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (235, 235, 235), 2, cv2.LINE_AA)
             tiles.append(th)
     cap.release()
     gap = np.full((640, 12, 3), 28, np.uint8)

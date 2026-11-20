@@ -1,7 +1,9 @@
-"""Синтез саундтрека BARH — «SMILE SERVICE REPEAT» (114 BPM, 14.74 с).
+"""Синтез меланхоличного хитового саундтрека для BARH — «SMILE SERVICE REPEAT» (92 BPM, 15.65 с).
 
-0.00 - 2.11 с (Bar 0): Атмосфера полёта + пролёт лайнера -> фирменный самолётный сигнал «DING-DONG» (1.58-2.02 с) -> пауза-вакуум
-2.11 - 14.74 с (Bars 1-6): Плотный качающий dark-pop / hip-hop бит в C minor (114 BPM) под смену планов, интерьеров и финальный логотип BARH.
+Настроение: тёплый альт-R&B / инди-поп (Cm9 -> Abmaj7 -> Fm9 -> G7sus4):
+  - бархатные тёплые клавиши (Rhodes / felt pad) с лёгкой плёночной теплотой
+  - запоминающийся гитарно-колокольный мотив с мягким стерео-дилеем
+  - глубокий тёплый саб-бас и мягкий деликатный грув (без резких скачков и агрессии)
 """
 import os
 import numpy as np
@@ -9,13 +11,13 @@ from scipy.io import wavfile
 from scipy.signal import butter, lfilter
 
 SR = 48000
-BPM = 114.0
-BEAT = 60.0 / BPM             # 0.526316 s
-BAR = 4 * BEAT                # 2.105263 s
-DUR = 7 * BAR                 # 14.736842 s
+BPM = 92.0
+BEAT = 60.0 / BPM             # 0.652174 s
+BAR = 4 * BEAT                # 2.608696 s
+DUR = 6 * BAR                 # 15.652174 s
 N = int(round(DUR * SR))
 
-rng = np.random.default_rng(114)
+rng = np.random.default_rng(92)
 
 
 def add(buf, t0, sig, gain=1.0, pan=0.0):
@@ -42,157 +44,164 @@ def bp(x, f0, f1):
     return lfilter(b, a, x)
 
 
-def hp(x, fc):
-    b, a = butter(2, max(0.002, fc / (0.5 * SR)), btype='high')
-    return lfilter(b, a, x)
-
-
-def kick_808(dur=0.44, f_end=43.0):
+def warm_rhodes(freq, dur):
+    """Тёплое электропиано с мягкой атакой и бархатным телом."""
     t = np.arange(int(dur * SR)) / SR
-    f = f_end + 112.0 * np.exp(-t / 0.022)
-    ph = 2.0 * np.pi * np.cumsum(f) / SR
-    body = np.sin(ph) * np.exp(-t / 0.19)
-    click = lp(rng.standard_normal(len(t)), 2400) * np.exp(-t / 0.004) * 0.35
-    sig = np.tanh((body * 1.45 + click) * 1.25) * np.exp(-t / 0.25)
-    return sig * 0.90
-
-
-def crisp_snare(dur=0.22):
-    t = np.arange(int(dur * SR)) / SR
-    nz = bp(rng.standard_normal(len(t)), 900, 7600) * np.exp(-t / 0.070)
-    tone = np.sin(2 * np.pi * 188 * t * np.exp(-t / 0.07)) * np.exp(-t / 0.032) * 0.50
-    return np.tanh((nz * 0.85 + tone) * 1.15) * 0.78
-
-
-def hihat(closed=True):
-    dur = 0.062 if closed else 0.26
-    t = np.arange(int(dur * SR)) / SR
-    nz = hp(rng.standard_normal(len(t)), 7400)
-    tau = 0.015 if closed else 0.090
-    return nz * np.exp(-t / tau) * (0.28 if closed else 0.34)
-
-
-def cabin_chime(freq, dur=0.52):
-    """Мягкий двухтоновый колокольчик бортового оповещения (seatbelt chime)."""
-    t = np.arange(int(dur * SR)) / SR
-    env = (1.0 - np.exp(-t / 0.004)) * np.exp(-t / 0.14)
-    sig = (
-        0.72 * np.sin(2 * np.pi * freq * t)
-        + 0.22 * np.sin(2 * np.pi * freq * 2.0 * t) * np.exp(-t / 0.06)
-        + 0.08 * np.sin(2 * np.pi * freq * 3.0 * t) * np.exp(-t / 0.03)
+    vib = 1.0 + 0.0014 * np.sin(2 * np.pi * 3.8 * t)
+    f = freq * vib
+    body = (
+        0.72 * np.sin(2 * np.pi * f * t)
+        + 0.20 * np.sin(2 * np.pi * f * 2.0 * t) * np.exp(-t / 0.65)
+        + 0.08 * np.sin(2 * np.pi * f * 3.0 * t) * np.exp(-t / 0.14)
     )
-    return sig * env
+    tine = np.sin(2 * np.pi * f * 4.0 * t) * np.exp(-t / 0.035) * 0.06
+    env = (1.0 - np.exp(-t / 0.022)) * np.exp(-t / max(0.9, dur * 0.85))
+    fade_out = np.minimum(1.0, (dur - t) / 0.06)
+    return lp((body + tine) * env * fade_out, 2400.0)
 
 
-def dark_bass_note(freq, dur):
+def hook_pluck(freq, dur=1.25):
+    """Запоминающийся атмосферный инди-мотив (гитара / стеклянный плак)."""
     t = np.arange(int(dur * SR)) / SR
-    saw = 2.0 * ((t * freq) % 1.0) - 1.0
-    sub = np.sin(2 * np.pi * freq * t)
-    sig = lp(saw, 280.0) * 0.45 + sub * 0.72
-    env = np.minimum(1.0, t / 0.014) * np.minimum(1.0, (dur - t) / 0.025)
-    return np.tanh(sig * 1.35) * env * 0.62
+    f = freq * (1.0 + 0.001 * np.sin(2 * np.pi * 4.5 * t))
+    sig = (
+        0.65 * np.sin(2 * np.pi * f * t)
+        + 0.25 * np.sin(2 * np.pi * f * 2.0 * t) * np.exp(-t / 0.35)
+        + 0.10 * np.sin(2 * np.pi * f * 3.0 * t) * np.exp(-t / 0.12)
+    )
+    env = (1.0 - np.exp(-t / 0.008)) * np.exp(-t / 0.42)
+    return lp(sig * env, 3200.0) * 0.42
 
 
-def dark_pluck(freq, dur=0.45):
+def soft_sub_bass(freq, dur):
     t = np.arange(int(dur * SR)) / SR
-    s1 = np.sin(2 * np.pi * freq * t)
-    s2 = np.sin(2 * np.pi * freq * 2.0 * t) * np.exp(-t / 0.08) * 0.35
-    s3 = lp(2.0 * ((t * freq * 1.002) % 1.0) - 1.0, 1800) * np.exp(-t / 0.11) * 0.25
-    env = (1.0 - np.exp(-t / 0.005)) * np.exp(-t / 0.16)
-    return (s1 + s2 + s3) * env * 0.30
+    sub = np.sin(2 * np.pi * freq * t) * 0.82 + np.sin(2 * np.pi * freq * 2.0 * t) * 0.18
+    env = np.minimum(1.0, t / 0.045) * np.minimum(1.0, (dur - t) / 0.08)
+    return np.tanh(sub * 1.15) * env * 0.55
+
+
+def heartbeat_kick():
+    """Мягкий глубокий кик без резкого щелчка."""
+    dur = 0.42
+    t = np.arange(int(dur * SR)) / SR
+    f = 42.0 + 68.0 * np.exp(-t / 0.032)
+    ph = 2.0 * np.pi * np.cumsum(f) / SR
+    sig = np.sin(ph) * (1.0 - np.exp(-t / 0.006)) * np.exp(-t / 0.18)
+    return lp(sig, 180.0) * 0.78
+
+
+def velvet_rimshot():
+    """Тёплый приглушённый римшот/снеп."""
+    dur = 0.20
+    t = np.arange(int(dur * SR)) / SR
+    nz = bp(rng.standard_normal(len(t)), 700, 3600) * np.exp(-t / 0.048) * 0.55
+    wood = np.sin(2 * np.pi * 245 * t * np.exp(-t / 0.05)) * np.exp(-t / 0.022) * 0.45
+    return lp(nz + wood, 4200.0) * 0.65
+
+
+def brushed_hat():
+    dur = 0.09
+    t = np.arange(int(dur * SR)) / SR
+    nz = bp(rng.standard_normal(len(t)), 4500, 10500)
+    return nz * np.exp(-t / 0.024) * 0.22
+
+
+def add_stereo_delay(buf, delay_s, fb=0.32):
+    d = int(round(delay_s * SR))
+    if d <= 0 or d >= N:
+        return buf
+    out = buf.copy()
+    wet = lp(buf[:, 0], 2600.0) * fb
+    wet_r = lp(buf[:, 1], 2200.0) * fb
+    out[d:, 0] += wet_r[:-d] * 0.85
+    out[d:, 1] += wet[:-d] * 0.85
+    if 2 * d < N:
+        out[2 * d:, 0] += wet[:-2 * d] * 0.35
+        out[2 * d:, 1] += wet_r[:-2 * d] * 0.35
+    return out
 
 
 def main():
     os.makedirs('audio', exist_ok=True)
     buf = np.zeros((N, 2), np.float64)
+    mel_buf = np.zeros((N, 2), np.float64)
 
-    # ---------------- BAR 0 (0.00 - 2.11 с): Пролёт самолёта + DING-DONG
-    n0 = int(round((BAR - 0.06) * SR))
-    t0 = np.arange(n0) / SR
-    # Гул турбин + воздушный поток с плавным Доплер-свипом
-    raw_jet = rng.standard_normal(n0)
-    jet_lo = bp(raw_jet, 85, 460)
-    jet_hi = bp(raw_jet, 240, 1300)
-    prog = np.clip(t0 / BAR, 0.0, 1.0)
-    jet_noise = jet_lo * (1.0 - 0.55 * prog) + jet_hi * (0.20 + 0.80 * prog)
-    jet_hum = np.sin(2 * np.pi * (110.0 - 18.0 * (t0 / BAR)) * t0) * 0.18
-    fly_env = np.sin(np.pi * np.clip(t0 / (BAR - 0.06), 0, 1)) ** 0.75
-    pad = (
-        np.sin(2 * np.pi * 130.81 * t0) * 0.15
-        + np.sin(2 * np.pi * 196.00 * t0) * 0.12
-        + np.sin(2 * np.pi * 293.66 * t0) * 0.08
-    ) * np.minimum(1.0, t0 / 0.25) * np.clip(1.0 - (t0 - (BAR - 0.22)) / 0.16, 0, 1)
-    sky_sig = (jet_noise * 0.26 + jet_hum) * fly_env + pad
-    buf[:n0, 0] += sky_sig * 0.78
-    buf[:n0, 1] += sky_sig * 0.78
-
-    # Культовый двойной «DING-DONG» самолёта прямо перед дропом
-    add(buf, 1.54, cabin_chime(880.0, 0.36), gain=0.46, pan=-0.10)   # A5
-    add(buf, 1.76, cabin_chime(659.25, 0.44), gain=0.52, pan=0.10)   # E5
-
-    # Короткий вакуум (2.04 - 2.11)
-    vac0, vac1 = int(round(2.04 * SR)), int(round(BAR * SR))
-    buf[vac0:vac1] *= np.linspace(1.0, 0.0, vac1 - vac0)[:, None] * 0.04
-
-    # ---------------- BARS 1 - 6 (2.11 - 14.74 с): ПЛОТНЫЙ DARK-POP БИТ (114 BPM)
-    roots = [
-        (1, 65.41),   # C2  (Bar 1 - Upper painting drop)
-        (2, 51.91),   # G#1 (Bar 2 - Lower painting switch)
-        (3, 43.65),   # F1  (Bar 3 - Loft 46x130)
-        (4, 49.00),   # G1  (Bar 4 - Loft -> Gallery)
-        (5, 65.41),   # C2  (Bar 5 - Gallery 46x130)
-        (6, 65.41),   # C2  (Bar 6 - BARH finale)
+    # Прогрессия: Cm9 -> Abmaj7 -> Fm9 -> G7sus4 -> Cm9 -> Cm9 (умиротворённо и цепляюще)
+    chords = [
+        # (bar_idx, root_bass, [chord_freqs])
+        (0, 65.41, [130.81, 196.00, 233.08, 293.66, 311.13]),   # Cm9
+        (1, 51.91, [103.83, 155.56, 196.00, 246.94, 311.13]),   # Abmaj7
+        (2, 43.65, [174.61, 207.65, 261.63, 311.13, 392.00]),   # Fm9
+        (3, 49.00, [146.83, 196.00, 261.63, 293.66, 349.23]),   # G7sus4 -> G
+        (4, 65.41, [130.81, 196.00, 233.08, 293.66, 311.13]),   # Cm9
+        (5, 65.41, [130.81, 196.00, 233.08, 311.13]),           # Cm (финальный вздох)
     ]
 
-    for b_idx, f_root in roots:
+    # Запоминающийся 8-нотный инди-поп мотив в C minor (работает как хук!)
+    motif = [
+        (0.0, 392.00),     # G4
+        (0.75, 311.13),    # Eb4
+        (1.5, 293.66),     # D4
+        (2.0, 261.63),     # C4
+        (2.5, 466.16),     # Bb4
+        (3.25, 392.00),    # G4
+    ]
+
+    for b_idx, f_bass, ch_freqs in chords:
         bs = b_idx * BAR
-        add(buf, bs, dark_bass_note(f_root, BAR - 0.03), gain=0.86)
+        # Тёплое перебирание аккорда с мягким страм-смещением
+        for j, cf in enumerate(ch_freqs):
+            add(buf, bs + j * 0.032, warm_rhodes(cf, BAR + 0.35),
+                gain=0.23, pan=-0.28 + 0.14 * j)
 
-        if b_idx < 6:
-            # Качающий паттерн кика: 0, 1.5, 2.5, 3.25
-            for off, g in [(0.0, 0.96), (1.5 * BEAT, 0.72), (2.5 * BEAT, 0.88), (3.25 * BEAT, 0.62)]:
-                add(buf, bs + off, kick_808(0.42), gain=g)
-            # Снэр/клэп на 2 и 4
-            for off in (1.0 * BEAT, 3.0 * BEAT):
-                add(buf, bs + off, crisp_snare(), gain=0.72, pan=-0.04)
-                add(buf, bs + off, crisp_snare(), gain=0.35, pan=0.16)
-            # Хэты 8-ми и быстрая трещотка перед сменой такта
-            for i in range(8):
-                is_open = (i == 7 and b_idx in (2, 4))
-                add(buf, bs + i * 0.5 * BEAT, hihat(not is_open),
-                    gain=0.40 if i % 2 == 0 else 0.25, pan=0.22 if i % 2 else -0.18)
-            if b_idx in (1, 3, 5):
-                add(buf, bs + 3.75 * BEAT, hihat(True), gain=0.34, pan=0.12)
-
-            # Минорные плаки (C minor: C4, Eb4, G4, Bb4)
-            mel = [261.63, 311.13, 392.00, 311.13, 466.16, 392.00, 311.13, 293.66]
-            for i, mf in enumerate(mel):
-                if i in (0, 2, 3, 5, 6):
-                    add(buf, bs + i * 0.5 * BEAT, dark_pluck(mf, 0.42),
-                        gain=0.44 if i == 0 else 0.30, pan=-0.20 if i % 2 == 0 else 0.22)
+        # Саб-бас со 2-го такта (плавный эмоциональный подъём)
+        if b_idx >= 1 and b_idx < 5:
+            add(buf, bs, soft_sub_bass(f_bass, BAR - 0.04), gain=0.78)
+        elif b_idx == 0:
+            add(buf, bs + 2.0 * BEAT, soft_sub_bass(f_bass, 2.0 * BEAT), gain=0.45)
         else:
-            # Финальный удар на BARH (12.63 с)
-            add(buf, bs, kick_808(0.85, 38.0), gain=1.05)
-            add(buf, bs, crisp_snare(0.32), gain=0.50)
-            add(buf, bs, dark_pluck(523.25, 0.90), gain=0.45)
-            # Затухание за 60 мс до 14.74 с для чистого лупа
-            fade_len = int(0.06 * SR)
-            buf[-fade_len:] *= np.linspace(1.0, 0.0, fade_len)[:, None]
+            add(buf, bs, soft_sub_bass(f_bass, BAR - 0.12), gain=0.62)
 
-    # Перебивочный вздох/краш на дропе (2.11), лофте (6.32) и галерее (9.47)
-    for t_hit in (BAR, 3 * BAR, 4.5 * BAR, 6 * BAR):
-        t_c = np.arange(int(0.65 * SR)) / SR
-        cr = hp(rng.standard_normal(len(t_c)), 4800) * np.exp(-t_c / 0.18) * 0.26
-        add(buf, t_hit, cr, gain=0.80)
+        # Хук-мотив с 1-го по 5-й такт
+        if b_idx < 5:
+            for m_beat, mf in motif:
+                # На 2-м и 4-м такте чуть меняем верхнюю ноту для развития
+                if b_idx in (1, 3) and abs(m_beat - 2.5) < 0.01:
+                    mf = 523.25 if b_idx == 1 else 466.16
+                add(mel_buf, bs + m_beat * BEAT, hook_pluck(mf, 1.35),
+                    gain=0.46 if b_idx >= 1 else 0.36, pan=0.14)
+
+        # Мягкий, качающий сердцебиение-грув со 2-го такта (Bars 1-4)
+        if 1 <= b_idx <= 4:
+            for off, g in [(0.0, 0.85), (1.75 * BEAT, 0.56), (2.5 * BEAT, 0.72)]:
+                add(buf, bs + off, heartbeat_kick(), gain=g)
+            for off in (1.0 * BEAT, 3.0 * BEAT):
+                add(buf, bs + off, velvet_rimshot(), gain=0.58, pan=-0.08)
+            for i in range(8):
+                add(buf, bs + i * 0.5 * BEAT, brushed_hat(),
+                    gain=0.30 if i % 2 == 0 else 0.17, pan=0.22 if i % 2 else -0.18)
+
+    # Тонкий тёплый виниловый/воздушный слой на весь трек (едва слышимый уют)
+    air = bp(rng.standard_normal(N), 240, 2400) * 0.012
+    buf[:, 0] += air
+    buf[:, 1] += air
+
+    # Стерео-дилей на мелодию (3/8 ноты = 0.75 * BEAT)
+    mel_wet = add_stereo_delay(mel_buf, 0.75 * BEAT, fb=0.38)
+    buf += mel_wet
+
+    # Финальное мягкое затухание за последние 0.65 с
+    fade_n = int(0.65 * SR)
+    buf[-fade_n:] *= np.linspace(1.0, 0.0, fade_n)[:, None] ** 1.4
 
     mx = np.max(np.abs(buf))
     if mx > 0.0:
-        buf = np.tanh(buf * (0.68 / mx) * 1.12) * 0.72
+        buf = np.tanh(buf * (0.68 / mx) * 1.08) * 0.72
 
     pcm = np.clip(buf * 32767.0, -32767, 32767).astype(np.int16)
-    out = 'audio/BARH_sky_114bpm.wav'
+    out = 'audio/BARH_melancholic_92bpm.wav'
     wavfile.write(out, SR, pcm)
-    rms = 20 * np.log10(np.sqrt(np.mean((buf) ** 2)) + 1e-9)
+    rms = 20 * np.log10(np.sqrt(np.mean(buf ** 2)) + 1e-9)
     print(f'written {out}: {DUR:.3f}s, peak={np.max(np.abs(buf)):.3f}, RMS={rms:.1f} dBFS')
 
 
