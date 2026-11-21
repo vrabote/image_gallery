@@ -2,7 +2,6 @@
 .idea
 .venv/
 kir_bakh/out/
-kir_bakh/*.mp4
 kir_bakh/*.zip
 uploads/*
 !uploads/.gitkeep
