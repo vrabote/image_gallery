@@ -1,11 +1,13 @@
 """Сборка финального TikTok-ролика 9:16 для BARH — «SMILE SERVICE REPEAT» (46 × 130 см).
 
-Меланхоличный, ультрасовременный и эстетически выверенный монтаж (92 BPM, 15.65 с):
-  - Старт сразу с картины 46×130 см в современном тёмном пентхаусе с панорамой мегаполиса («01 · TWILIGHT PENTHOUSE»)
-  - Деликатный текстовый хук «the quiet after 10,000 smiles.» над полотном + живые пылинки в луче света
-  - Единый плавный проезд по всей ширине картины сверху донизу (1384 -> 1080, без рывков и тесных кропов)
-  - Показ в ультрасовременной светлой резиденции («02 · DAYLIGHT RESIDENCE») с живым движением солнечного луча
-  - Финал: крупный фирменный рукописный белый логотип BARH на чистом чёрном фоне
+Музыка: космический синти-звук в духе Space 1980-х (108 BPM, 22.22 с).
+Структура:
+  0.00 – 4.44 с   Ночной пентхаус («01 · TWILIGHT PENTHOUSE») + двуязычный хук:
+                  «Stop. Deep breath. Relax and look. / Остановись. Глубокий вдох. Расслабься и посмотри.»
+  4.44 – 11.11 с  Кадр между ночью и днём: построчно проявляющийся текст на двух языках (EN + RU)
+  11.11 – 15.56 с Дневная современная резиденция («02 · DAYLIGHT RESIDENCE») с живым солнечным лучом
+  15.56 – 20.00 с Плавный проезд по всей ширине картины сверху донизу (1384 -> 1080, без рывков и сильного зума)
+  20.00 – 22.22 с Финал: крупный фирменный рукописный белый логотип BARH на чистом чёрном фоне
 """
 import os
 import subprocess
@@ -18,22 +20,23 @@ from PIL import Image, ImageDraw, ImageFont
 
 W, H = 1080, 1920
 FPS = 30
-BPM = 92.0
-BEAT = 60.0 / BPM             # 0.652174 s
-BAR = 4 * BEAT                # 2.608696 s
-DUR = 6 * BAR                 # 15.652174 s
+BPM = 108.0
+BEAT = 60.0 / BPM             # 0.555556 s
+BAR = 4 * BEAT                # 2.222222 s
+DUR = 10 * BAR                # 22.222222 s
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
 PENTHOUSE_PATH = 'work/interior_penthouse.png'
 MODERN_GAL_PATH = 'work/interior_modern_gallery.png'
-AUDIO_PATH = 'audio/BARH_melancholic_92bpm.wav'
+AUDIO_PATH = 'audio/BARH_space80s_108bpm.wav'
 OUT_MP4 = 'SMILE_SERVICE_REPEAT_BARH.mp4'
 OUT_BOARD = 'storyboard.jpg'
 OUT_COVER = 'cover.png'
 
-F_SERIF_IT = 'fonts/InstrumentSerif-Italic.ttf'
-F_MONO = 'fonts/IBMPlexMono-Bold.ttf'
+F_OSWALD = 'fonts/Oswald-Variable.ttf'
+F_MONO_REG = 'fonts/IBMPlexMono-Regular.ttf'
+F_MONO_BOLD = 'fonts/IBMPlexMono-Bold.ttf'
 
 SRC = cv2.imread(ART_PATH)
 if SRC is None:
@@ -51,17 +54,21 @@ LOGO_ALPHA = LOGO_RS[..., 3:4] / 255.0
 gy, gx = np.mgrid[0:H, 0:W].astype(np.float32)
 VIG = (1.0 - 0.16 * (((gx - W / 2) / (W / 2)) ** 2 + ((gy - H / 2) / (H / 2)) ** 2) * 0.50)[..., None].astype(np.float32)
 
-# Детерминированные тончайшие пылинки света для глубины кинокамеры
-_rng = np.random.default_rng(2026)
+# Атмосферная приглушённая подложка для текстового кадра (едва уловимый силуэт картины в космическом сумраке)
+_bg_crop = cv2.resize(SRC[300:2600, :], (W, H), interpolation=cv2.INTER_AREA).astype(np.float32)
+_bg_blur = cv2.GaussianBlur(_bg_crop, (0, 0), 42.0)
+TEXT_BG = np.clip(_bg_blur * 0.14 + np.array([12.0, 9.0, 7.0], np.float32), 0, 255) * VIG
+
+_rng = np.random.default_rng(1980)
 MOTES = [
     (
-        _rng.uniform(260, 820),   # x0
-        _rng.uniform(380, 1200),  # y0
-        _rng.uniform(1.0, 2.0),   # radius (тончайшие)
-        _rng.uniform(-7, 7),      # vx
-        _rng.uniform(-12, -3),    # vy
-        _rng.uniform(0.08, 0.18), # alpha (едва заметные)
-        _rng.uniform(0, 6.28),    # phase
+        _rng.uniform(260, 820),
+        _rng.uniform(380, 1200),
+        _rng.uniform(1.0, 2.0),
+        _rng.uniform(-7, 7),
+        _rng.uniform(-12, -3),
+        _rng.uniform(0.08, 0.18),
+        _rng.uniform(0, 6.28),
     )
     for _ in range(22)
 ]
@@ -69,7 +76,6 @@ MOTES = [
 
 def build_mounted_room(room_path, crop_box, target_h_1080, center_xy_1080,
                        shadow_dx, shadow_dy, light_mode, scale_hi=1.5):
-    """Рендерит ультрасовременный интерьер в 1.5x с картиной в точных пропорциях 46x130 см."""
     rw = int(W * scale_hi)
     rh = int(H * scale_hi)
     rm = cv2.imread(room_path)
@@ -89,14 +95,12 @@ def build_mounted_room(room_path, crop_box, target_h_1080, center_xy_1080,
     nx = xx / max(1, pw - 1)
 
     if light_mode == 'penthouse':
-        # Тёплый верхний cove-свет + деликатный холодный рефлекс от панорамного окна слева
         spot = 0.87 + 0.16 * np.exp(-((nx - 0.50) * 1.35) ** 2 - ((ny - 0.22) * 1.15) ** 2)
         canvas *= spot[..., None]
         canvas[..., 2] *= 1.025
         canvas[..., 0] *= 0.96 + 0.04 * (1.0 - nx)
         side_col = np.array([34, 34, 36], np.float32)
     else:
-        # Золотой дневной свет из окна справа и диагональный солнечный блик сверху
         sun = 0.92 + 0.11 * nx * np.exp(-((ny - 0.25) * 1.4) ** 2)
         canvas *= sun[..., None]
         canvas[..., 2] *= 1.03
@@ -131,7 +135,7 @@ ROOM_PENTHOUSE = build_mounted_room(
     PENTHOUSE_PATH,
     crop_box=(36, 48, 740, 1298),
     target_h_1080=740,
-    center_xy_1080=(543, 855),
+    center_xy_1080=(543, 860),
     shadow_dx=5,
     shadow_dy=16,
     light_mode='penthouse',
@@ -164,7 +168,6 @@ def zoom_room(room_hi, zoom, cy_shift=0.0):
 
 
 def add_dust_motes(fr, t, warmth=(215, 232, 248)):
-    """Тончайшие плавающие пылинки в свете софита/окна (добавляет глубину кинокамеры)."""
     ov = np.zeros((H, W, 3), np.float32)
     for x0, y0, r, vx, vy, a, ph in MOTES:
         x = int(round(x0 + vx * t + 6.0 * np.sin(0.6 * t + ph)))
@@ -177,7 +180,6 @@ def add_dust_motes(fr, t, warmth=(215, 232, 248)):
 
 
 def full_width_art(cy):
-    """Спокойный кадр на всю ширину холста (1384 -> 1080) без рывков и тесных кропов."""
     s = W / SW
     vh = H / s
     cy_clamped = float(np.clip(cy, vh / 2.0, SH - vh / 2.0))
@@ -191,9 +193,11 @@ def full_width_art(cy):
     return fr
 
 
-@lru_cache(maxsize=32)
-def text_tile(text, font_path, size, tracking, color, shadow=True):
+@lru_cache(maxsize=64)
+def text_tile(text, font_path, size, tracking, color, shadow=True, weight=0):
     f = ImageFont.truetype(font_path, size)
+    if weight:
+        f.set_variation_by_axes([weight])
     probe = ImageDraw.Draw(Image.new('RGBA', (4, 4)))
     widths = [probe.textlength(ch, font=f) for ch in text]
     asc, desc = f.getmetrics()
@@ -205,7 +209,7 @@ def text_tile(text, font_path, size, tracking, color, shadow=True):
     if shadow:
         x = float(pad_x)
         for ch, cw in zip(text, widths):
-            d.text((x + 2, pad_y + 2), ch, font=f, fill=(0, 0, 0, 195))
+            d.text((x + 2, pad_y + 2), ch, font=f, fill=(0, 0, 0, 200))
             x += cw + tracking
     x = float(pad_x)
     for ch, cw in zip(text, widths):
@@ -229,38 +233,97 @@ def overlay_tile(frame, tile, cx, cy, alpha=1.0):
     return frame
 
 
-T_LOFT_END = 4.25
-T_PAN_END = 10.45
-T_GAL_END = 13.45
+# Таймлайн (108 BPM, 10 тактов = 22.22 с)
+T_NIGHT_END = 2 * BAR    # 4.44 s  — 01 · TWILIGHT PENTHOUSE (старт: Stop. Deep breath...)
+T_TEXT_END = 5 * BAR     # 11.11 s — Двуязычный кадр между ночью и днём (6 строф EN + RU)
+T_DAY_END = 7 * BAR      # 15.56 s — 02 · DAYLIGHT RESIDENCE
+T_PAN_END = 9 * BAR      # 20.00 s — Плавный проезд по всей ширине картины
+                         # 20.00 – 22.22 s — Белый логотип BARH на #000000
+
+STANZAS = [
+    (T_NIGHT_END + 0.20, 360, 408, 'Smile? Always.', 'Улыбаться? Всегда.'),
+    (T_NIGHT_END + 1.05, 555, 603, 'Service? Of course.', 'Обслуживание? Конечно.'),
+    (T_NIGHT_END + 1.90, 750, 798, 'Repeat? Until we land.', 'Повторять? Пока не приземлимся.'),
+    (T_NIGHT_END + 2.75, 945, 993, 'Tired? Not in the job description.', 'Устал? Этого нет в инструкции.'),
+    (T_NIGHT_END + 3.75, 1215, 1263, 'This is my new work.', 'Это моя новая работа.'),
+    (T_NIGHT_END + 4.55, 1410, 1460, '“Smile Service Repeat” 46×130 cm, oil on canvas', '«Повтор службы улыбок», 46×130 см, холст, масло.'),
+]
 
 
-def scene_penthouse(t):
-    p = np.clip(t / (T_LOFT_END + 0.5), 0.0, 1.0)
+def scene_night(t):
+    p = np.clip(t / (T_NIGHT_END + 0.5), 0.0, 1.0)
     fr = zoom_room(ROOM_PENTHOUSE, 1.00 + 0.070 * p, cy_shift=-10.0 * p)
     fr = add_dust_motes(fr, t, warmth=(200, 224, 248))
-
-    # Мягкое появление из темноты в первые 0.28 с для бесшовного цикла TikTok
     if t < 0.28:
         fr *= sm(0.0, 0.28, t)
 
-    # Верхний эмоциональный хук на ровной тёмной стене ниже яркой LED-подсветки
-    a_hook = sm(0.18, 0.72, t) * (1.0 - sm(T_LOFT_END - 0.85, T_LOFT_END - 0.15, t))
+    # Старт на двух языках: Stop. Deep breath. Relax and look. / Остановись. Глубокий вдох. Расслабься и посмотри.
+    a_hook = sm(0.16, 0.72, t) * (1.0 - sm(T_NIGHT_END - 0.75, T_NIGHT_END - 0.10, t))
     if a_hook > 0.005:
-        eyebrow = text_tile('BARH  ·  “SMILE SERVICE REPEAT”  ·  46 × 130 CM', F_MONO, 19, 4, (208, 204, 196), shadow=True)
-        hook = text_tile('the quiet after 10,000 smiles.', F_SERIF_IT, 54, 1, (246, 243, 236), shadow=True)
-        fr = overlay_tile(fr, eyebrow, W / 2, 350, a_hook * 0.88)
-        fr = overlay_tile(fr, hook, W / 2, 408, a_hook * 0.96)
+        en_open = text_tile('Stop. Deep breath. Relax and look.', F_OSWALD, 46, 2, (246, 243, 236), shadow=True, weight=400)
+        ru_open = text_tile('Остановись. Глубокий вдох. Расслабься и посмотри.', F_MONO_REG, 22, 1, (214, 210, 202), shadow=True)
+        fr = overlay_tile(fr, en_open, W / 2, 355, a_hook * 0.96)
+        fr = overlay_tile(fr, ru_open, W / 2, 412, a_hook * 0.90)
 
-    # Стильная подпись пространства 01 (для вовлечения и дебатов 01 vs 02 в комментариях)
-    a_tag = sm(0.45, 1.05, t) * (1.0 - sm(T_LOFT_END - 0.85, T_LOFT_END - 0.15, t))
+    a_tag = sm(0.45, 1.00, t) * (1.0 - sm(T_NIGHT_END - 0.75, T_NIGHT_END - 0.10, t))
     if a_tag > 0.005:
-        tag1 = text_tile('01  ·  TWILIGHT PENTHOUSE', F_MONO, 22, 5, (232, 228, 220), shadow=True)
-        fr = overlay_tile(fr, tag1, W / 2, 1290, a_tag * 0.90)
+        tag1 = text_tile('01  ·  TWILIGHT PENTHOUSE', F_MONO_BOLD, 22, 5, (232, 228, 220), shadow=True)
+        fr = overlay_tile(fr, tag1, W / 2, 1295, a_tag * 0.90)
+    return fr
+
+
+def scene_bilingual_text(t):
+    fr = TEXT_BG.copy()
+    fr = add_dust_motes(fr, t * 0.65, warmth=(210, 225, 245))
+    a_all = 1.0 - sm(T_TEXT_END - 0.65, T_TEXT_END, t)
+
+    # Тонкий деликатный разделитель между первыми 4 вопросами и представлением работы
+    a_rule = sm(T_NIGHT_END + 3.45, T_NIGHT_END + 4.05, t) * a_all
+    if a_rule > 0.01:
+        y_r = 1112
+        x0, x1 = W // 2 - 90, W // 2 + 90
+        fr[y_r:y_r + 2, x0:x1] = fr[y_r:y_r + 2, x0:x1] * (1.0 - 0.28 * a_rule) + 210.0 * (0.28 * a_rule)
+
+    for idx, (t_on, y_en, y_ru, txt_en, txt_ru) in enumerate(STANZAS):
+        a = sm(t_on, t_on + 0.55, t) * a_all
+        if a <= 0.004:
+            continue
+        is_title = (idx == 5)
+        sz_en = 42 if is_title else 46
+        sz_ru = 24 if is_title else 25
+        col_en = (242, 222, 182) if is_title else (246, 243, 236)
+        col_ru = (212, 198, 172) if is_title else (186, 184, 178)
+        t_e = text_tile(txt_en, F_OSWALD, sz_en, 1, col_en, shadow=True, weight=500 if is_title else 350)
+        t_r = text_tile(txt_ru, F_MONO_REG, sz_ru, 1, col_ru, shadow=True)
+        # Мягкое всплытие на 10 пикселей без рывка
+        dy = (1.0 - sm(t_on, t_on + 0.55, t)) * 10.0
+        fr = overlay_tile(fr, t_e, W / 2, y_en + dy, a * 0.96)
+        fr = overlay_tile(fr, t_r, W / 2, y_ru + dy, a * 0.90)
+    return fr
+
+
+def scene_day(t):
+    p = np.clip((t - (T_TEXT_END - 0.60)) / (T_DAY_END - (T_TEXT_END - 0.60)), 0.0, 1.0)
+    fr = zoom_room(ROOM_MODERN_GAL, 1.00 + 0.060 * p, cy_shift=-8.0 * p)
+
+    beam_center = 0.34 + 0.14 * p
+    diag = (gy / H) * 0.85 + (1.0 - gx / W) * 0.55
+    beam = np.exp(-((diag - beam_center) / 0.16) ** 2) * (0.55 + 0.45 * np.sin(np.pi * p))
+    beam_mask = np.clip((beam - 0.15) * 1.15, 0.0, 1.0)[..., None]
+    fr = np.clip(fr + beam_mask * np.array([10.0, 16.0, 22.0], np.float32), 0, 255)
+    fr = add_dust_motes(fr, t - T_TEXT_END + 2.0, warmth=(200, 230, 255))
+
+    a_tag = sm(T_TEXT_END + 0.25, T_TEXT_END + 0.85, t) * (1.0 - sm(T_DAY_END - 0.70, T_DAY_END - 0.10, t))
+    if a_tag > 0.005:
+        tag2 = text_tile('02  ·  DAYLIGHT RESIDENCE', F_MONO_BOLD, 22, 5, (48, 45, 40), shadow=False)
+        sub2 = text_tile('46 × 130 CM  ·  OIL ON CANVAS', F_MONO_REG, 19, 3, (86, 80, 72), shadow=False)
+        fr = overlay_tile(fr, tag2, W / 2, 1255, a_tag * 0.92)
+        fr = overlay_tile(fr, sub2, W / 2, 1296, a_tag * 0.84)
     return fr
 
 
 def scene_pan(t):
-    p = np.clip((t - (T_LOFT_END - 0.70)) / ((T_PAN_END + 0.50) - (T_LOFT_END - 0.70)), 0.0, 1.0)
+    p = np.clip((t - (T_DAY_END - 0.70)) / ((T_PAN_END + 0.40) - (T_DAY_END - 0.70)), 0.0, 1.0)
     q = 0.5 - 0.5 * np.cos(np.pi * p)
     vh = H * (SW / W)
     cy0 = vh / 2.0
@@ -268,29 +331,8 @@ def scene_pan(t):
     return full_width_art(cy0 + (cy1 - cy0) * q)
 
 
-def scene_modern_gallery(t):
-    p = np.clip((t - (T_PAN_END - 0.60)) / (T_GAL_END - (T_PAN_END - 0.60)), 0.0, 1.0)
-    fr = zoom_room(ROOM_MODERN_GAL, 1.00 + 0.055 * p, cy_shift=-8.0 * p)
-
-    # Живой золотой солнечный луч, медленно скользящий по стене и картине
-    beam_center = 0.34 + 0.14 * p
-    diag = (gy / H) * 0.85 + (1.0 - gx / W) * 0.55
-    beam = np.exp(-((diag - beam_center) / 0.16) ** 2) * (0.55 + 0.45 * np.sin(np.pi * p))
-    beam_mask = np.clip((beam - 0.15) * 1.15, 0.0, 1.0)[..., None]
-    fr = np.clip(fr + beam_mask * np.array([10.0, 16.0, 22.0], np.float32), 0, 255)
-    fr = add_dust_motes(fr, t - T_PAN_END + 2.0, warmth=(200, 230, 255))
-
-    a_tag = sm(T_PAN_END + 0.25, T_PAN_END + 0.80, t) * (1.0 - sm(T_GAL_END - 0.75, T_GAL_END - 0.15, t))
-    if a_tag > 0.005:
-        tag2 = text_tile('02  ·  DAYLIGHT RESIDENCE', F_MONO, 22, 5, (48, 45, 40), shadow=False)
-        sub2 = text_tile('46 × 130 CM', F_MONO, 19, 4, (86, 80, 72), shadow=False)
-        fr = overlay_tile(fr, tag2, W / 2, 1255, a_tag * 0.92)
-        fr = overlay_tile(fr, sub2, W / 2, 1296, a_tag * 0.82)
-    return fr
-
-
 def scene_barh(t):
-    dt = max(0.0, t - T_GAL_END)
+    dt = max(0.0, t - T_PAN_END)
     frame = np.zeros((H, W, 3), np.float32)
     q = np.clip((dt - 0.05) / 0.85, 0.0, 1.0)
     q = q * q * (3.0 - 2.0 * q)
@@ -305,21 +347,26 @@ def scene_barh(t):
 
 
 def render_frame(t):
-    xf = 0.85
-    if t < T_LOFT_END:
-        fr = scene_penthouse(t)
-        if t > T_LOFT_END - xf:
-            q = sm(T_LOFT_END - xf, T_LOFT_END, t)
+    xf = 0.75
+    if t < T_NIGHT_END:
+        fr = scene_night(t)
+        if t > T_NIGHT_END - xf:
+            q = sm(T_NIGHT_END - xf, T_NIGHT_END, t)
+            fr = fr * (1.0 - q) + scene_bilingual_text(t) * q
+    elif t < T_TEXT_END:
+        fr = scene_bilingual_text(t)
+        if t > T_TEXT_END - xf:
+            q = sm(T_TEXT_END - xf, T_TEXT_END, t)
+            fr = fr * (1.0 - q) + scene_day(t) * q
+    elif t < T_DAY_END:
+        fr = scene_day(t)
+        if t > T_DAY_END - xf:
+            q = sm(T_DAY_END - xf, T_DAY_END, t)
             fr = fr * (1.0 - q) + scene_pan(t) * q
     elif t < T_PAN_END:
         fr = scene_pan(t)
-        if t > T_PAN_END - xf:
-            q = sm(T_PAN_END - xf, T_PAN_END, t)
-            fr = fr * (1.0 - q) + scene_modern_gallery(t) * q
-    elif t < T_GAL_END:
-        fr = scene_modern_gallery(t)
-        if t > T_GAL_END - 0.55:
-            q = sm(T_GAL_END - 0.55, T_GAL_END, t)
+        if t > T_PAN_END - 0.55:
+            q = sm(T_PAN_END - 0.55, T_PAN_END, t)
             fr = fr * (1.0 - q) + scene_barh(t) * q
     else:
         fr = scene_barh(t)
@@ -357,14 +404,14 @@ def main():
     cv2.imwrite(OUT_COVER, render_frame(1.80))
     cap = cv2.VideoCapture(OUT_MP4)
     stamps = [
-        (1.20, '01.20 PENTHOUSE 01'),
-        (3.10, '03.10 PENTHOUSE HOOK'),
-        (5.00, '05.00 PAINTING TOP'),
-        (6.60, '06.60 PAINTING MID'),
-        (8.10, '08.10 SMILE SERVICE'),
-        (9.50, '09.50 PAINTING LOWER'),
-        (11.60, '11.60 RESIDENCE 02'),
-        (14.80, '14.80 BARH LOGO'),
+        (1.80, '01.80 NIGHT HOOK EN+RU'),
+        (5.40, '05.40 TEXT PART 1'),
+        (7.80, '07.80 TEXT PART 2'),
+        (10.10, '10.10 FULL BILINGUAL'),
+        (13.20, '13.20 DAY RESIDENCE 02'),
+        (16.60, '16.60 PAINTING TOP'),
+        (18.60, '18.60 PAINTING LOWER'),
+        (21.40, '21.40 BARH LOGO'),
     ]
     tiles = []
     for ts, lbl in stamps:
@@ -373,7 +420,7 @@ def main():
         if ok:
             th = cv2.resize(fr, (360, 640), interpolation=cv2.INTER_AREA)
             cv2.rectangle(th, (0, 0), (360, 36), (18, 18, 22), -1)
-            cv2.putText(th, lbl, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (235, 235, 235), 2, cv2.LINE_AA)
+            cv2.putText(th, lbl, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (235, 235, 235), 2, cv2.LINE_AA)
             tiles.append(th)
     cap.release()
     gap = np.full((640, 12, 3), 28, np.uint8)
