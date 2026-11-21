@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Приключения Кир Баха и Петьки — Торт на 18-летие</title>
+  <style>
+    :root {
+      --paper: #f4efe6;
+      --card: #faf6ee;
+      --ink: #2e2620;
+      --muted: #6c5947;
+      --border: #cbbca3;
+      --accent: #7a5533;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 28px 18px 48px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(24px, 3.4vw, 34px);
+    }
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+    }
+    .player-card {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 28px rgba(46, 38, 32, 0.08);
+    }
+    video {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      display: block;
+      border-radius: 10px;
+      background: #1d1814;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .btn:hover { opacity: 0.92; }
+    .gallery-title {
+      margin: 28px 0 12px;
+      font-size: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+    .scene {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .scene img {
+      width: 100%;
+      display: block;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+    }
+    .scene figcaption {
+      padding: 8px 10px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Приключения Кир Баха и Петьки</h1>
+      <p class="subtitle">Серия 1: Торт на 18-летие (озвученный мультфильм, 1 мин 53 сек)</p>
+    </header>
+
+    <section class="player-card">
+      <video controls playsinline preload="metadata" poster="./cake_story/01_dropped_cake.png">
+        <source src="./priklyucheniya_kir_bakha_tort.mp4" type="video/mp4" />
+        Ваш браузер не поддерживает воспроизведение видео.
+      </video>
+      <div class="actions">
+        <span class="meta">1280×720 HD · 24 fps · Русская озвучка, музыка и звуки</span>
+        <a class="btn" href="./priklyucheniya_kir_bakha_tort.mp4?download=1" download="priklyucheniya_kir_bakha_tort.mp4">
+          Скачать MP4
+        </a>
+      </div>
+    </section>
+
+    <h2 class="gallery-title">Кадры истории</h2>
+    <div class="grid">
+      <figure class="scene">
+        <img src="./cake_story/01_dropped_cake.png" alt="Кадр 1" />
+        <figcaption>1. Беда по дороге: торт упал на мостовую</figcaption>
+      </figure>
+      <figure class="scene">
+        <img src="./cake_story/02_friend_kitchen_cookbook.png" alt="Кадр 2" />
+        <figcaption>2. На кухне у друга с поваренной книгой</figcaption>
+      </figure>
+      <figure class="scene">
+        <img src="./cake_story/03_kitchen_disaster.png" alt="Кадр 3" />
+        <figcaption>3. Тесто-вулкан и переполох на кухне</figcaption>
+      </figure>
+      <figure class="scene">
+        <img src="./cake_story/04_teamwork_breakthrough.png" alt="Кадр 4" />
+        <figcaption>4. Дружная вторая попытка с яблоками и ягодами</figcaption>
+      </figure>
+      <figure class="scene">
+        <img src="./cake_story/05_sister_18_waiting.png" alt="Кадр 5" />
+        <figcaption>5. Старшая сестра (18 лет) ждёт братьев к чаю</figcaption>
+      </figure>
+      <figure class="scene">
+        <img src="./cake_story/06_happy_finale.png" alt="Кадр 6" />
+        <figcaption>6. В итоге всё получилось!</figcaption>
+      </figure>
+    </div>
+  </div>
+</body>
+</html>
