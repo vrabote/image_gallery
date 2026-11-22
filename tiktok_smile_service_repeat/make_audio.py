@@ -1,10 +1,11 @@
-"""Синтез лиричной космической баллады в духе SPACE 1980-х годов (Ballad for Space Lovers / Just Blue).
+"""Синтез камерного ночного космического ноктюрна в духе SPACE — «Secret Dreams» (1978).
 
-76 BPM · 7 тактов · 22.11 с · C minor -> Eb major -> Ab major -> G7sus4 -> Cm:
-  - широкие бархатные стерео-струны Solina / Juno с медленным космическим хорусом
-  - нежные переливы электропиано (8-ми нотами, без диско-спешки)
-  - поющий лиричный аналоговый Moog-лид с экспрессивным вибрато и длинным эхом
-  - мягкий тёплый бас и деликатная балладная перкуссия 80-х
+Характерный саунд раннего прог-синти Space (1978, Just Blue B-side):
+  - медленный ночной темп (~59.5 BPM, half-time от 119 BPM · 22.18 с)
+  - тёплые аналоговые струны с мягким стерео-фейзером (Dm9 -> Gm9 -> Cmaj7 -> Fmaj7 -> Bbmaj7 -> A7sus4 -> Dm9)
+  - хрустальные ночные капли электропиано
+  - тихий, интимный поющий аналоговый синти-лид (флейта/терменвокс-синт 70-х) с нежным эхом
+  - мягчайший тёплый бас и невесомый ночной пульс
 """
 import os
 import numpy as np
@@ -12,13 +13,13 @@ from scipy.io import wavfile
 from scipy.signal import butter, lfilter
 
 SR = 48000
-BPM = 76.0
-BEAT = 60.0 / BPM             # 0.789474 s
-BAR = 4 * BEAT                # 3.157895 s
-DUR = 7 * BAR                 # 22.105263 s
+BPM = 59.5                    # half-time от 119 BPM («Secret Dreams»)
+BEAT = 60.0 / BPM             # 1.008403 s
+BAR = 4 * BEAT                # 4.033613 s
+DUR = 5.5 * BAR               # 22.184874 s
 N = int(round(DUR * SR))
 
-rng = np.random.default_rng(1981)
+rng = np.random.default_rng(1978)
 
 
 def add(buf, t0, sig, gain=1.0, pan=0.0):
@@ -45,45 +46,45 @@ def bp(x, f0, f1):
     return lfilter(b, a, x)
 
 
-def solina_strings(freqs, dur):
-    """Классический лиричный ансамбль струн 80-х (Solina / Juno chorus)."""
+def prog_nocturne_pad(freqs, dur):
+    """Тёплый аналоговый пад конца 70-х с медленным дыханием фильтра."""
     n_c = int(dur * SR)
     t = np.arange(n_c) / SR
     left = np.zeros(n_c, np.float64)
     right = np.zeros(n_c, np.float64)
     for idx, f in enumerate(freqs):
-        lfo1 = 1.0 + 0.0032 * np.sin(2 * np.pi * (0.38 + 0.07 * idx) * t)
-        lfo2 = 1.0 + 0.0030 * np.sin(2 * np.pi * (0.52 + 0.06 * idx) * t + 1.7)
+        lfo1 = 1.0 + 0.0028 * np.sin(2 * np.pi * (0.28 + 0.05 * idx) * t)
+        lfo2 = 1.0 + 0.0026 * np.sin(2 * np.pi * (0.41 + 0.05 * idx) * t + 1.4)
         s_l = 2.0 * ((np.cumsum(f * lfo1) / SR) % 1.0) - 1.0
-        s_r = 2.0 * ((np.cumsum(f * lfo2 * 1.0018) / SR) % 1.0) - 1.0
-        left += lp(s_l, 1450.0)
-        right += lp(s_r, 1450.0)
-    env = np.minimum(1.0, t / 0.55) * np.minimum(1.0, (dur - t) / 0.65)
+        s_r = 2.0 * ((np.cumsum(f * lfo2 * 1.0016) / SR) % 1.0) - 1.0
+        left += lp(s_l, 1280.0)
+        right += lp(s_r, 1280.0)
+    env = np.minimum(1.0, t / 0.70) * np.minimum(1.0, (dur - t) / 0.85)
     sc = env / max(1, len(freqs))
     return left * sc * 0.76, right * sc * 0.76
 
 
-def dreamy_rhodes_note(freq, dur=1.45):
-    """Мягкая стеклянная капля электропиано для космического перебора."""
+def crystal_ep(freq, dur=1.90):
+    """Камерные ночные ноты электропиано."""
     t = np.arange(int(dur * SR)) / SR
     sig = (
-        0.74 * np.sin(2 * np.pi * freq * t)
-        + 0.20 * np.sin(2 * np.pi * freq * 2.0 * t) * np.exp(-t / 0.45)
-        + 0.06 * np.sin(2 * np.pi * freq * 3.0 * t) * np.exp(-t / 0.12)
+        0.78 * np.sin(2 * np.pi * freq * t)
+        + 0.16 * np.sin(2 * np.pi * freq * 2.0 * t) * np.exp(-t / 0.55)
+        + 0.06 * np.sin(2 * np.pi * freq * 3.0 * t) * np.exp(-t / 0.14)
     )
-    env = (1.0 - np.exp(-t / 0.015)) * np.exp(-t / 0.62)
-    return lp(sig * env, 2300.0) * 0.34
+    env = (1.0 - np.exp(-t / 0.018)) * np.exp(-t / 0.78)
+    return lp(sig * env, 2100.0) * 0.34
 
 
-def warm_fretless_bass(freq, dur):
+def warm_sub(freq, dur):
     t = np.arange(int(dur * SR)) / SR
-    sig = np.sin(2 * np.pi * freq * t) * 0.78 + lp(2.0 * ((t * freq) % 1.0) - 1.0, 220.0) * 0.35
-    env = np.minimum(1.0, t / 0.065) * np.minimum(1.0, (dur - t) / 0.12)
-    return sig * env * 0.54
+    sig = np.sin(2 * np.pi * freq * t) * 0.84 + lp(2.0 * ((t * freq) % 1.0) - 1.0, 190.0) * 0.25
+    env = np.minimum(1.0, t / 0.09) * np.minimum(1.0, (dur - t) / 0.18)
+    return sig * env * 0.52
 
 
-def lyrical_space_lead(notes, total_dur):
-    """Певучий лиричный аналоговый Moog-лид (Ballad for Space Lovers style)."""
+def intimate_synth_flute(notes, total_dur):
+    """Нежный ночной аналоговый лид (дух 'Secret Dreams' 1978)."""
     n_l = int(round(total_dur * SR))
     t = np.arange(n_l) / SR
     f_track = np.full(n_l, notes[0][1], np.float64)
@@ -96,43 +97,39 @@ def lyrical_space_lead(notes, total_dur):
             continue
         prev_f = notes[i - 1][1] if i > 0 else freq
         seg_t = np.arange(i1 - i0) / SR
-        # Нежное долгое портаменто между нотами
-        glide = prev_f + (freq - prev_f) * (1.0 - np.exp(-seg_t / 0.048))
+        glide = prev_f + (freq - prev_f) * (1.0 - np.exp(-seg_t / 0.055))
         f_track[i0:i1] = glide
-        # Задержка вибрато — появляется на тянущихся нотах
-        env = (1.0 - np.exp(-seg_t / 0.045)) * np.minimum(1.0, (n_dur - seg_t) / 0.12)
+        env = (1.0 - np.exp(-seg_t / 0.060)) * np.minimum(1.0, (n_dur - seg_t) / 0.16)
         amp_track[i0:i1] = np.maximum(amp_track[i0:i1], env)
 
-    vib = 1.0 + 0.0055 * np.sin(2 * np.pi * 4.8 * t)
+    vib = 1.0 + 0.0048 * np.sin(2 * np.pi * 4.5 * t)
     ph = 2.0 * np.pi * np.cumsum(f_track * vib) / SR
-    # Тёплая аналоговая форма (мягкий квадрат + треугольник/синус)
-    sig = 0.55 * np.sin(ph) + 0.30 * np.tanh(1.8 * np.sin(ph)) + 0.15 * np.sin(2 * ph)
-    return lp(sig, 2200.0) * amp_track * 0.44
+    sig = 0.65 * np.sin(ph) + 0.24 * np.tanh(1.5 * np.sin(ph)) + 0.11 * np.sin(2 * ph)
+    breath = bp(rng.standard_normal(n_l), 900, 2600) * 0.015
+    return lp((sig + breath), 1950.0) * amp_track * 0.44
 
 
-def soft_ballad_kick():
-    dur = 0.45
+def soft_pulse_kick():
+    dur = 0.48
     t = np.arange(int(dur * SR)) / SR
-    f = 44.0 + 70.0 * np.exp(-t / 0.032)
+    f = 44.0 + 58.0 * np.exp(-t / 0.038)
     ph = 2.0 * np.pi * np.cumsum(f) / SR
-    return lp(np.sin(ph) * (1.0 - np.exp(-t / 0.008)) * np.exp(-t / 0.18), 165.0) * 0.65
+    return lp(np.sin(ph) * (1.0 - np.exp(-t / 0.012)) * np.exp(-t / 0.20), 150.0) * 0.54
 
 
-def soft_brush_snare():
-    dur = 0.34
+def night_brush():
+    dur = 0.36
     t = np.arange(int(dur * SR)) / SR
-    nz = bp(rng.standard_normal(len(t)), 650, 3800) * np.exp(-t / 0.12)
-    return nz * 0.28
+    return bp(rng.standard_normal(len(t)), 550, 3200) * np.exp(-t / 0.13) * 0.20
 
 
-def add_cosmic_reverb(buf):
-    """Протяжное бархатное стерео-эхо (как в космос-синте 80-х)."""
+def cosmic_echo(buf):
     out = buf.copy()
-    for d_s, g in [(0.375 * BEAT, 0.36), (0.75 * BEAT, 0.28), (1.25 * BEAT, 0.18)]:
+    for d_s, g in [(0.375 * BEAT, 0.38), (0.75 * BEAT, 0.28), (1.25 * BEAT, 0.18)]:
         d = int(round(d_s * SR))
         if d < N:
-            w0 = lp(buf[:, 0], 2200.0) * g
-            w1 = lp(buf[:, 1], 2000.0) * g
+            w0 = lp(buf[:, 0], 1900.0) * g
+            w1 = lp(buf[:, 1], 1750.0) * g
             out[d:, 0] += w1[:-d]
             out[d:, 1] += w0[:-d]
     return out
@@ -143,85 +140,79 @@ def main():
     buf = np.zeros((N, 2), np.float64)
     lead_buf = np.zeros((N, 2), np.float64)
 
-    # Лиричная романтично-меланхоличная гармония 80-х:
-    # Cm9 -> Fm9 -> Bb13 -> Ebmaj7 -> Abmaj7 -> G7sus4 -> Cm9
+    # Ночная прог-гармония в D minor (камерная, глубокая, как в 'Secret Dreams'):
+    # Dm9 -> Gm9 -> Cmaj7 -> Fmaj7 -> Bbmaj7 -> Dm9
     chords = [
-        (0, 65.41, [130.81, 196.00, 233.08, 293.66, 311.13], [130.81, 196.00, 293.66, 311.13]),  # Cm9
-        (1, 43.65, [174.61, 207.65, 261.63, 311.13, 392.00], [174.61, 261.63, 311.13, 392.00]),  # Fm9
-        (2, 58.27, [116.54, 174.61, 233.08, 293.66, 349.23], [116.54, 233.08, 293.66, 349.23]),  # Bb
-        (3, 77.78, [155.56, 196.00, 233.08, 293.66, 392.00], [155.56, 233.08, 293.66, 392.00]),  # Ebmaj7
-        (4, 51.91, [103.83, 155.56, 207.65, 246.94, 311.13], [103.83, 207.65, 246.94, 311.13]),  # Abmaj7
-        (5, 49.00, [146.83, 196.00, 261.63, 293.66, 349.23], [146.83, 196.00, 261.63, 293.66]),  # G7sus4 -> G
-        (6, 65.41, [130.81, 196.00, 233.08, 293.66, 311.13], [130.81, 196.00, 293.66, 311.13]),  # Cm9
+        (0, 73.42, [146.83, 220.00, 261.63, 329.63, 349.23], [146.83, 220.00, 329.63, 349.23]),  # Dm9
+        (1, 49.00, [196.00, 233.08, 293.66, 349.23, 440.00], [196.00, 293.66, 349.23, 440.00]),  # Gm9
+        (2, 65.41, [130.81, 196.00, 246.94, 329.63, 392.00], [130.81, 246.94, 329.63, 392.00]),  # Cmaj7
+        (3, 87.31, [174.61, 220.00, 261.63, 329.63, 440.00], [174.61, 261.63, 329.63, 440.00]),  # Fmaj7
+        (4, 58.27, [116.54, 174.61, 220.00, 293.66, 349.23], [116.54, 220.00, 293.66, 349.23]),  # Bbmaj7
+        (5, 73.42, [146.83, 220.00, 261.63, 329.63], [146.83, 220.00, 261.63, 329.63]),          # Dm7 (полутакт-аутро)
     ]
 
     for b_idx, f_bass, str_freqs, arp_freqs in chords:
         bs = b_idx * BAR
-        sl, sr = solina_strings(str_freqs, BAR + 0.45)
+        dur_bar = (0.5 * BAR) if b_idx == 5 else BAR
+        sl, sr = prog_nocturne_pad(str_freqs, dur_bar + 0.55)
         i0 = int(round(bs * SR))
         ln = min(len(sl), N - i0)
         buf[i0:i0 + ln, 0] += sl[:ln]
         buf[i0:i0 + ln, 1] += sr[:ln]
 
-        if b_idx < 6:
-            add(buf, bs, warm_fretless_bass(f_bass, BAR - 0.05), gain=0.80)
-            # Медленный волнообразный 8-дольный перебор электропиано
+        if b_idx < 5:
+            add(buf, bs, warm_sub(f_bass, BAR - 0.06), gain=0.78)
             seq = [0, 1, 2, 3, 2, 1, 2, 3]
             for st, idx_n in enumerate(seq):
                 add(lead_buf, bs + st * 0.5 * BEAT,
-                    dreamy_rhodes_note(arp_freqs[idx_n] * 2.0, 1.35),
+                    crystal_ep(arp_freqs[idx_n] * 2.0, 1.85),
                     gain=0.28, pan=-0.26 + 0.075 * st)
         else:
-            add(buf, bs, warm_fretless_bass(f_bass, BAR - 0.45), gain=0.62)
+            add(buf, bs, warm_sub(f_bass, dur_bar - 0.20), gain=0.60)
 
-        # Деликатный балладный пульс с Bar 1 по Bar 5
-        if 1 <= b_idx <= 5:
-            add(buf, bs + 0.0 * BEAT, soft_ballad_kick(), gain=0.72)
-            add(buf, bs + 2.0 * BEAT, soft_ballad_kick(), gain=0.60)
-            add(buf, bs + 1.0 * BEAT, soft_brush_snare(), gain=0.55, pan=-0.08)
-            add(buf, bs + 3.0 * BEAT, soft_brush_snare(), gain=0.60, pan=0.08)
+        # Тихий невесомый ночной пульс с Bar 1 по Bar 4
+        if 1 <= b_idx <= 4:
+            for bi in (0.0, 2.0):
+                add(buf, bs + bi * BEAT, soft_pulse_kick(), gain=0.68)
+            for bi in (1.0, 3.0):
+                add(buf, bs + bi * BEAT, night_brush(), gain=0.55, pan=-0.08 if bi == 1 else 0.08)
 
-    # Певучая лиричная тема (Bars 1 - 5: тянущиеся поющие ноты, как Ballad for Space Lovers)
+    # Интимная ночная мелодия (Bar 1 -> Bar 5)
     mel_notes = [
-        # Bar 1 (3.16 - 6.32) — нежное вступление мелодии на тексте
-        (1 * BAR + 0.0 * BEAT, 523.25, 1.5 * BEAT),    # C5
-        (1 * BAR + 1.5 * BEAT, 587.33, 0.75 * BEAT),   # D5
-        (1 * BAR + 2.25 * BEAT, 622.25, 1.75 * BEAT),  # Eb5
-        # Bar 2 (6.32 - 9.47)
-        (2 * BAR + 0.0 * BEAT, 587.33, 1.5 * BEAT),    # D5
-        (2 * BAR + 1.5 * BEAT, 466.16, 1.0 * BEAT),    # Bb4
-        (2 * BAR + 2.5 * BEAT, 523.25, 1.5 * BEAT),    # C5
-        # Bar 3 (9.47 - 12.63) — светлый вздох при переходе в Ebmaj7 и дневной свет
-        (3 * BAR + 0.0 * BEAT, 783.99, 2.0 * BEAT),    # G5
-        (3 * BAR + 2.0 * BEAT, 698.46, 1.0 * BEAT),    # F5
-        (3 * BAR + 3.0 * BEAT, 622.25, 1.0 * BEAT),    # Eb5
-        # Bar 4 (12.63 - 15.79)
-        (4 * BAR + 0.0 * BEAT, 622.25, 1.5 * BEAT),    # Eb5
-        (4 * BAR + 1.5 * BEAT, 587.33, 1.0 * BEAT),    # D5
-        (4 * BAR + 2.5 * BEAT, 523.25, 1.5 * BEAT),    # C5
-        # Bar 5 (15.79 - 18.95) — кульминационная высокая фраза на проезде по картине
-        (5 * BAR + 0.0 * BEAT, 587.33, 1.5 * BEAT),    # D5
-        (5 * BAR + 1.5 * BEAT, 622.25, 1.0 * BEAT),    # Eb5
-        (5 * BAR + 2.5 * BEAT, 698.46, 1.5 * BEAT),    # F5
-        # Bar 6 (18.95 - 22.11) — умиротворённое разрешение в G5 -> C5
-        (6 * BAR + 0.0 * BEAT, 783.99, 1.5 * BEAT),    # G5
-        (6 * BAR + 1.5 * BEAT, 523.25, 2.0 * BEAT),    # C5
+        # Bar 1 (4.03 - 8.07): старт двуязычного текста
+        (1 * BAR + 0.0 * BEAT, 587.33, 1.5 * BEAT),    # D5
+        (1 * BAR + 1.5 * BEAT, 659.25, 0.75 * BEAT),   # E5
+        (1 * BAR + 2.25 * BEAT, 698.46, 1.75 * BEAT),  # F5
+        # Bar 2 (8.07 - 12.10)
+        (2 * BAR + 0.0 * BEAT, 659.25, 1.5 * BEAT),    # E5
+        (2 * BAR + 1.5 * BEAT, 523.25, 1.0 * BEAT),    # C5
+        (2 * BAR + 2.5 * BEAT, 587.33, 1.5 * BEAT),    # D5
+        # Bar 3 (12.10 - 16.13): рассвет в дневной резиденции
+        (3 * BAR + 0.0 * BEAT, 880.00, 2.0 * BEAT),    # A5
+        (3 * BAR + 2.0 * BEAT, 783.99, 1.0 * BEAT),    # G5
+        (3 * BAR + 3.0 * BEAT, 698.46, 1.0 * BEAT),    # F5
+        # Bar 4 (16.13 - 20.17): проезд по картине
+        (4 * BAR + 0.0 * BEAT, 698.46, 1.5 * BEAT),    # F5
+        (4 * BAR + 1.5 * BEAT, 659.25, 1.0 * BEAT),    # E5
+        (4 * BAR + 2.5 * BEAT, 587.33, 1.5 * BEAT),    # D5
+        # Bar 5 (20.17 - 22.18): тихое разрешение на BARH
+        (5 * BAR + 0.0 * BEAT, 587.33, 1.9 * BEAT),    # D5
     ]
-    ls = lyrical_space_lead(mel_notes, DUR)
+    ls = intimate_synth_flute(mel_notes, DUR)
     lead_buf[:, 0] += ls * 0.90
     lead_buf[:, 1] += ls * 0.90
 
-    buf += add_cosmic_reverb(lead_buf)
+    buf += cosmic_echo(lead_buf)
 
-    fade_n = int(1.05 * SR)
-    buf[-fade_n:] *= np.linspace(1.0, 0.0, fade_n)[:, None] ** 1.35
+    fade_n = int(1.15 * SR)
+    buf[-fade_n:] *= np.linspace(1.0, 0.0, fade_n)[:, None] ** 1.4
 
     mx = np.max(np.abs(buf))
     if mx > 0.0:
         buf = np.tanh(buf * (0.68 / mx) * 1.08) * 0.72
 
     pcm = np.clip(buf * 32767.0, -32767, 32767).astype(np.int16)
-    out = 'audio/BARH_space_lyrical_76bpm.wav'
+    out = 'audio/BARH_secret_dreams_60bpm.wav'
     wavfile.write(out, SR, pcm)
     rms = 20 * np.log10(np.sqrt(np.mean(buf ** 2)) + 1e-9)
     print(f'written {out}: {DUR:.3f}s, peak={np.max(np.abs(buf)):.3f}, RMS={rms:.1f} dBFS')

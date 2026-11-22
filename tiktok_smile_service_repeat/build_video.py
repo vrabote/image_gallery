@@ -20,16 +20,16 @@ from PIL import Image, ImageDraw, ImageFont
 
 W, H = 1080, 1920
 FPS = 30
-BPM = 76.0
-BEAT = 60.0 / BPM             # 0.789474 s
-BAR = 4 * BEAT                # 3.157895 s
-DUR = 7 * BAR                 # 22.105263 s
+BPM = 59.5
+BEAT = 60.0 / BPM             # 1.008403 s
+BAR = 4 * BEAT                # 4.033613 s
+DUR = 5.5 * BAR               # 22.184874 s
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
 PENTHOUSE_PATH = 'work/interior_penthouse.png'
 MODERN_GAL_PATH = 'work/interior_modern_gallery.png'
-AUDIO_PATH = 'audio/BARH_space_lyrical_76bpm.wav'
+AUDIO_PATH = 'audio/BARH_secret_dreams_60bpm.wav'
 OUT_MP4 = 'SMILE_SERVICE_REPEAT_BARH.mp4'
 OUT_BOARD = 'storyboard.jpg'
 OUT_COVER = 'cover.png'
@@ -134,8 +134,8 @@ print('Подготовка современных интерьеров 46x130 �
 ROOM_PENTHOUSE = build_mounted_room(
     PENTHOUSE_PATH,
     crop_box=(36, 48, 740, 1298),
-    target_h_1080=740,
-    center_xy_1080=(543, 860),
+    target_h_1080=748,
+    center_xy_1080=(543, 835),
     shadow_dx=5,
     shadow_dy=16,
     light_mode='penthouse',
@@ -233,12 +233,12 @@ def overlay_tile(frame, tile, cx, cy, alpha=1.0):
     return frame
 
 
-# Таймлайн (76 BPM, 7 тактов = 22.11 с)
-T_NIGHT_END = 4.40       # 01 · TWILIGHT PENTHOUSE (старт: Stop. Deep breath...)
-T_TEXT_END = 11.10       # Двуязычный кадр между ночью и днём (6 строф EN + RU)
-T_DAY_END = 15.55        # 02 · DAYLIGHT RESIDENCE
-T_PAN_END = 19.90        # Плавный проезд по всей ширине картины
-                         # 19.90 – 22.11 с — Белый логотип BARH на #000000
+# Таймлайн (59.5 BPM «Secret Dreams», 22.18 с)
+T_NIGHT_END = 4.25       # Ночной пентхаус + крупный заголовок поперёк экрана
+T_TEXT_END = 11.15       # Двуязычный кадр между ночью и днём (6 строф EN + RU)
+T_DAY_END = 15.65        # Дневная резиденция с живым солнечным лучом (чисто без мелких подписей)
+T_PAN_END = 19.95        # Плавный проезд по всей ширине картины
+                         # 19.95 – 22.18 с — Белый логотип BARH на #000000
 
 STANZAS = [
     (T_NIGHT_END + 0.20, 325, 392, 'Smile? Always.', 'Улыбаться? Всегда.'),
@@ -257,18 +257,15 @@ def scene_night(t):
     if t < 0.28:
         fr *= sm(0.0, 0.28, t)
 
-    # Старт крупно на двух языках: Stop. Deep breath. Relax and look. / Остановись. Глубокий вдох. Расслабься и посмотри.
-    a_hook = sm(0.16, 0.72, t) * (1.0 - sm(T_NIGHT_END - 0.75, T_NIGHT_END - 0.10, t))
+    # Первая надпись — прямо крупно поперёк экрана на двух языках (без мелких подписей под картиной)
+    a_hook = sm(0.15, 0.70, t) * (1.0 - sm(T_NIGHT_END - 0.75, T_NIGHT_END - 0.10, t))
     if a_hook > 0.005:
-        en_open = text_tile('Stop. Deep breath. Relax and look.', F_OSWALD, 56, 2, (246, 243, 236), shadow=True, weight=450)
-        ru_open = text_tile('Остановись. Глубокий вдох. Расслабься и посмотри.', F_OSWALD, 38, 1, (220, 216, 208), shadow=True, weight=300)
-        fr = overlay_tile(fr, en_open, W / 2, 352, a_hook * 0.96)
-        fr = overlay_tile(fr, ru_open, W / 2, 418, a_hook * 0.92)
-
-    a_tag = sm(0.45, 1.00, t) * (1.0 - sm(T_NIGHT_END - 0.75, T_NIGHT_END - 0.10, t))
-    if a_tag > 0.005:
-        tag1 = text_tile('01  ·  TWILIGHT PENTHOUSE', F_MONO_BOLD, 26, 4, (236, 232, 224), shadow=True)
-        fr = overlay_tile(fr, tag1, W / 2, 1300, a_tag * 0.92)
+        band = np.exp(-((gy - 880.0) / 170.0) ** 2) * 0.44 * a_hook
+        fr *= (1.0 - band[..., None])
+        en_open = text_tile('Stop. Deep breath. Relax and look.', F_OSWALD, 68, 2, (250, 248, 242), shadow=True, weight=500)
+        ru_open = text_tile('Остановись. Глубокий вдох. Расслабься и посмотри.', F_OSWALD, 48, 1, (228, 224, 216), shadow=True, weight=350)
+        fr = overlay_tile(fr, en_open, W / 2, 835, a_hook * 0.98)
+        fr = overlay_tile(fr, ru_open, W / 2, 922, a_hook * 0.95)
     return fr
 
 
@@ -310,13 +307,6 @@ def scene_day(t):
     beam_mask = np.clip((beam - 0.15) * 1.15, 0.0, 1.0)[..., None]
     fr = np.clip(fr + beam_mask * np.array([10.0, 16.0, 22.0], np.float32), 0, 255)
     fr = add_dust_motes(fr, t - T_TEXT_END + 2.0, warmth=(200, 230, 255))
-
-    a_tag = sm(T_TEXT_END + 0.25, T_TEXT_END + 0.85, t) * (1.0 - sm(T_DAY_END - 0.70, T_DAY_END - 0.10, t))
-    if a_tag > 0.005:
-        tag2 = text_tile('02  ·  DAYLIGHT RESIDENCE', F_MONO_BOLD, 26, 4, (44, 41, 36), shadow=False)
-        sub2 = text_tile('46 × 130 CM  ·  OIL ON CANVAS', F_MONO_REG, 22, 3, (82, 76, 68), shadow=False)
-        fr = overlay_tile(fr, tag2, W / 2, 1255, a_tag * 0.94)
-        fr = overlay_tile(fr, sub2, W / 2, 1300, a_tag * 0.86)
     return fr
 
 
