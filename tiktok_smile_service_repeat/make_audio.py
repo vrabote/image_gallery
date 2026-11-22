@@ -16,7 +16,7 @@ SR = 48000
 BPM = 59.5                    # half-time от 119 BPM («Secret Dreams»)
 BEAT = 60.0 / BPM             # 1.008403 s
 BAR = 4 * BEAT                # 4.033613 s
-DUR = 5.5 * BAR               # 22.184874 s
+DUR = 6.0 * BAR               # 24.201681 s
 N = int(round(DUR * SR))
 
 rng = np.random.default_rng(1978)
@@ -153,7 +153,7 @@ def main():
 
     for b_idx, f_bass, str_freqs, arp_freqs in chords:
         bs = b_idx * BAR
-        dur_bar = (0.5 * BAR) if b_idx == 5 else BAR
+        dur_bar = BAR
         sl, sr = prog_nocturne_pad(str_freqs, dur_bar + 0.55)
         i0 = int(round(bs * SR))
         ln = min(len(sl), N - i0)
@@ -168,14 +168,20 @@ def main():
                     crystal_ep(arp_freqs[idx_n] * 2.0, 1.85),
                     gain=0.28, pan=-0.26 + 0.075 * st)
         else:
-            add(buf, bs, warm_sub(f_bass, dur_bar - 0.20), gain=0.60)
+            add(buf, bs, warm_sub(f_bass, dur_bar - 0.35), gain=0.62)
+            for st, idx_n in enumerate([0, 1, 2, 3]):
+                add(lead_buf, bs + st * 0.5 * BEAT,
+                    crystal_ep(arp_freqs[idx_n] * 2.0, 2.10),
+                    gain=0.24, pan=-0.18 + 0.12 * st)
 
-        # Тихий невесомый ночной пульс с Bar 1 по Bar 4
+        # Тихий невесомый ночной пульс с Bar 1 по Bar 4 (и финальный вздох на 5.0)
         if 1 <= b_idx <= 4:
             for bi in (0.0, 2.0):
                 add(buf, bs + bi * BEAT, soft_pulse_kick(), gain=0.68)
             for bi in (1.0, 3.0):
                 add(buf, bs + bi * BEAT, night_brush(), gain=0.55, pan=-0.08 if bi == 1 else 0.08)
+        elif b_idx == 5:
+            add(buf, bs, soft_pulse_kick(), gain=0.52)
 
     # Интимная ночная мелодия (Bar 1 -> Bar 5)
     mel_notes = [
@@ -183,11 +189,11 @@ def main():
         (1 * BAR + 0.0 * BEAT, 587.33, 1.5 * BEAT),    # D5
         (1 * BAR + 1.5 * BEAT, 659.25, 0.75 * BEAT),   # E5
         (1 * BAR + 2.25 * BEAT, 698.46, 1.75 * BEAT),  # F5
-        # Bar 2 (8.07 - 12.10)
+        # Bar 2 (8.07 - 12.10): переход в дневной свет
         (2 * BAR + 0.0 * BEAT, 659.25, 1.5 * BEAT),    # E5
         (2 * BAR + 1.5 * BEAT, 523.25, 1.0 * BEAT),    # C5
         (2 * BAR + 2.5 * BEAT, 587.33, 1.5 * BEAT),    # D5
-        # Bar 3 (12.10 - 16.13): рассвет в дневной резиденции
+        # Bar 3 (12.10 - 16.13): дневная резиденция
         (3 * BAR + 0.0 * BEAT, 880.00, 2.0 * BEAT),    # A5
         (3 * BAR + 2.0 * BEAT, 783.99, 1.0 * BEAT),    # G5
         (3 * BAR + 3.0 * BEAT, 698.46, 1.0 * BEAT),    # F5
@@ -195,8 +201,9 @@ def main():
         (4 * BAR + 0.0 * BEAT, 698.46, 1.5 * BEAT),    # F5
         (4 * BAR + 1.5 * BEAT, 659.25, 1.0 * BEAT),    # E5
         (4 * BAR + 2.5 * BEAT, 587.33, 1.5 * BEAT),    # D5
-        # Bar 5 (20.17 - 22.18): тихое разрешение на BARH
-        (5 * BAR + 0.0 * BEAT, 587.33, 1.9 * BEAT),    # D5
+        # Bar 5 (20.17 - 24.20): нижняя часть картины -> тихое разрешение на BARH
+        (5 * BAR + 0.0 * BEAT, 659.25, 1.5 * BEAT),    # E5
+        (5 * BAR + 1.5 * BEAT, 587.33, 2.3 * BEAT),    # D5
     ]
     ls = intimate_synth_flute(mel_notes, DUR)
     lead_buf[:, 0] += ls * 0.90

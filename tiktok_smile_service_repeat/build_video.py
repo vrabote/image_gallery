@@ -23,7 +23,7 @@ FPS = 30
 BPM = 59.5
 BEAT = 60.0 / BPM             # 1.008403 s
 BAR = 4 * BEAT                # 4.033613 s
-DUR = 5.5 * BAR               # 22.184874 s
+DUR = 6.0 * BAR               # 24.201681 s
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
@@ -35,8 +35,6 @@ OUT_BOARD = 'storyboard.jpg'
 OUT_COVER = 'cover.png'
 
 F_OSWALD = 'fonts/Oswald-Variable.ttf'
-F_MONO_REG = 'fonts/IBMPlexMono-Regular.ttf'
-F_MONO_BOLD = 'fonts/IBMPlexMono-Bold.ttf'
 
 SRC = cv2.imread(ART_PATH)
 if SRC is None:
@@ -134,8 +132,8 @@ print('Подготовка современных интерьеров 46x130 �
 ROOM_PENTHOUSE = build_mounted_room(
     PENTHOUSE_PATH,
     crop_box=(36, 48, 740, 1298),
-    target_h_1080=748,
-    center_xy_1080=(543, 835),
+    target_h_1080=805,
+    center_xy_1080=(543, 845),
     shadow_dx=5,
     shadow_dy=16,
     light_mode='penthouse',
@@ -143,8 +141,8 @@ ROOM_PENTHOUSE = build_mounted_room(
 ROOM_MODERN_GAL = build_mounted_room(
     MODERN_GAL_PATH,
     crop_box=(24, 52, 744, 1332),
-    target_h_1080=736,
-    center_xy_1080=(539, 825),
+    target_h_1080=795,
+    center_xy_1080=(539, 835),
     shadow_dx=-16,
     shadow_dy=14,
     light_mode='gallery',
@@ -233,65 +231,75 @@ def overlay_tile(frame, tile, cx, cy, alpha=1.0):
     return frame
 
 
-# Таймлайн (59.5 BPM «Secret Dreams», 22.18 с)
-T_NIGHT_END = 4.25       # Ночной пентхаус + крупный заголовок поперёк экрана
-T_TEXT_END = 11.15       # Двуязычный кадр между ночью и днём (6 строф EN + RU)
-T_DAY_END = 15.65        # Дневная резиденция с живым солнечным лучом (чисто без мелких подписей)
-T_PAN_END = 19.95        # Плавный проезд по всей ширине картины
-                         # 19.95 – 22.18 с — Белый логотип BARH на #000000
+# Таймлайн (59.5 BPM «Secret Dreams», 24.20 с — больше времени на саму картину)
+T_NIGHT_END = 5.65       # Ночной пентхаус: 4 крупных последовательных слова + чистый показ картины
+T_TEXT_END = 11.45       # Двуязычный кадр между ночью и днём (6 строф EN + RU)
+T_DAY_END = 16.45        # Дневная резиденция с живым солнечным лучом (5.00 с)
+T_PAN_END = 22.10        # Плавный проезд по всей ширине картины (5.65 с)
+                         # 22.10 – 24.20 с — Белый логотип BARH на #000000
+
+OPEN_STEPS = [
+    (0.08, 1.28, 'Stop.', 'Остановись.', 136, 78),
+    (1.22, 2.44, 'Deep breath.', 'Глубокий вдох.', 120, 74),
+    (2.38, 3.60, 'Relax.', 'Расслабься.', 136, 78),
+    (3.54, 4.76, 'And look.', 'И посмотри.', 126, 78),
+]
 
 STANZAS = [
-    (T_NIGHT_END + 0.20, 325, 392, 'Smile? Always.', 'Улыбаться? Всегда.'),
-    (T_NIGHT_END + 1.05, 535, 602, 'Service? Of course.', 'Обслуживание? Конечно.'),
-    (T_NIGHT_END + 1.90, 745, 812, 'Repeat? Until we land.', 'Повторять? Пока не приземлимся.'),
-    (T_NIGHT_END + 2.75, 955, 1022, 'Tired? Not in the job description.', 'Устал? Этого нет в инструкции.'),
-    (T_NIGHT_END + 3.75, 1230, 1295, 'This is my new work.', 'Это моя новая работа.'),
-    (T_NIGHT_END + 4.55, 1435, 1498, '“Smile Service Repeat” 46×130 cm, oil on canvas', '«Повтор службы улыбок», 46×130 см, холст, масло.'),
+    (T_NIGHT_END + 0.12, 325, 392, 'Smile? Always.', 'Улыбаться? Всегда.'),
+    (T_NIGHT_END + 0.85, 535, 602, 'Service? Of course.', 'Обслуживание? Конечно.'),
+    (T_NIGHT_END + 1.58, 745, 812, 'Repeat? Until we land.', 'Повторять? Пока не приземлимся.'),
+    (T_NIGHT_END + 2.31, 955, 1022, 'Tired? Not in the job description.', 'Устал? Этого нет в инструкции.'),
+    (T_NIGHT_END + 3.15, 1230, 1295, 'This is my new work.', 'Это моя новая работа.'),
+    (T_NIGHT_END + 3.85, 1435, 1498, '“Smile Service Repeat” 46×130 cm, oil on canvas', '«Улыбнись. Помоги. Повтори.», 46×130 см, холст, масло.'),
 ]
 
 
 def scene_night(t):
     p = np.clip(t / (T_NIGHT_END + 0.5), 0.0, 1.0)
-    fr = zoom_room(ROOM_PENTHOUSE, 1.00 + 0.070 * p, cy_shift=-10.0 * p)
+    fr = zoom_room(ROOM_PENTHOUSE, 1.00 + 0.075 * p, cy_shift=-10.0 * p)
     fr = add_dust_motes(fr, t, warmth=(200, 224, 248))
-    if t < 0.28:
-        fr *= sm(0.0, 0.28, t)
+    if t < 0.24:
+        fr *= sm(0.0, 0.24, t)
 
-    # Первая надпись — прямо крупно поперёк экрана на двух языках (без мелких подписей под картиной)
-    a_hook = sm(0.15, 0.70, t) * (1.0 - sm(T_NIGHT_END - 0.75, T_NIGHT_END - 0.10, t))
-    if a_hook > 0.005:
-        band = np.exp(-((gy - 880.0) / 170.0) ** 2) * 0.44 * a_hook
-        fr *= (1.0 - band[..., None])
-        en_open = text_tile('Stop. Deep breath. Relax and look.', F_OSWALD, 68, 2, (250, 248, 242), shadow=True, weight=500)
-        ru_open = text_tile('Остановись. Глубокий вдох. Расслабься и посмотри.', F_OSWALD, 48, 1, (228, 224, 216), shadow=True, weight=350)
-        fr = overlay_tile(fr, en_open, W / 2, 835, a_hook * 0.98)
-        fr = overlay_tile(fr, ru_open, W / 2, 922, a_hook * 0.95)
+    # Последовательно появляющиеся и исчезающие ОЧЕНЬ крупные слова поперёк экрана
+    for t0, t1, txt_en, txt_ru, sz_en, sz_ru in OPEN_STEPS:
+        if t < t0 or t > t1:
+            continue
+        a = sm(t0, t0 + 0.26, t) * (1.0 - sm(t1 - 0.30, t1, t))
+        if a > 0.004:
+            band = np.exp(-((gy - 880.0) / 195.0) ** 2) * 0.44 * a
+            fr *= (1.0 - band[..., None])
+            en_t = text_tile(txt_en, F_OSWALD, sz_en, 2, (252, 250, 244), shadow=True, weight=500)
+            ru_t = text_tile(txt_ru, F_OSWALD, sz_ru, 2, (232, 228, 220), shadow=True, weight=350)
+            fr = overlay_tile(fr, en_t, W / 2, 825, a * 0.99)
+            fr = overlay_tile(fr, ru_t, W / 2, 955, a * 0.96)
     return fr
 
 
 def scene_bilingual_text(t):
     fr = TEXT_BG.copy()
     fr = add_dust_motes(fr, t * 0.65, warmth=(210, 225, 245))
-    a_all = 1.0 - sm(T_TEXT_END - 0.65, T_TEXT_END, t)
+    a_all = 1.0 - sm(T_TEXT_END - 0.60, T_TEXT_END, t)
 
-    a_rule = sm(T_NIGHT_END + 3.45, T_NIGHT_END + 4.05, t) * a_all
+    a_rule = sm(T_NIGHT_END + 2.85, T_NIGHT_END + 3.40, t) * a_all
     if a_rule > 0.01:
         y_r = 1135
         x0, x1 = W // 2 - 110, W // 2 + 110
         fr[y_r:y_r + 2, x0:x1] = fr[y_r:y_r + 2, x0:x1] * (1.0 - 0.30 * a_rule) + 215.0 * (0.30 * a_rule)
 
     for idx, (t_on, y_en, y_ru, txt_en, txt_ru) in enumerate(STANZAS):
-        a = sm(t_on, t_on + 0.55, t) * a_all
+        a = sm(t_on, t_on + 0.48, t) * a_all
         if a <= 0.004:
             continue
         is_title = (idx == 5)
         sz_en = 46 if is_title else (58 if idx == 3 else 64)
-        sz_ru = 35 if is_title else (40 if idx in (2, 3) else 42)
+        sz_ru = 34 if is_title else (40 if idx in (2, 3) else 42)
         col_en = (244, 224, 184) if is_title else (248, 245, 238)
         col_ru = (218, 204, 178) if is_title else (196, 194, 188)
         t_e = text_tile(txt_en, F_OSWALD, sz_en, 1, col_en, shadow=True, weight=500 if is_title else 400)
         t_r = text_tile(txt_ru, F_OSWALD, sz_ru, 1, col_ru, shadow=True, weight=350 if is_title else 300)
-        dy = (1.0 - sm(t_on, t_on + 0.55, t)) * 10.0
+        dy = (1.0 - sm(t_on, t_on + 0.48, t)) * 10.0
         fr = overlay_tile(fr, t_e, W / 2, y_en + dy, a * 0.98)
         fr = overlay_tile(fr, t_r, W / 2, y_ru + dy, a * 0.92)
     return fr
@@ -389,17 +397,17 @@ def main():
                     '-movflags', '+faststart', '-shortest', OUT_MP4], check=True)
     os.remove(raw)
 
-    cv2.imwrite(OUT_COVER, render_frame(1.80))
+    cv2.imwrite(OUT_COVER, render_frame(5.10))
     cap = cv2.VideoCapture(OUT_MP4)
     stamps = [
-        (1.80, '01.80 NIGHT HOOK EN+RU'),
-        (5.40, '05.40 TEXT PART 1'),
-        (7.80, '07.80 TEXT PART 2'),
-        (10.10, '10.10 FULL BILINGUAL'),
-        (13.20, '13.20 DAY RESIDENCE 02'),
-        (16.60, '16.60 PAINTING TOP'),
-        (18.60, '18.60 PAINTING LOWER'),
-        (21.40, '21.40 BARH LOGO'),
+        (0.70, '00.70 STOP / OSTANOVIS'),
+        (1.85, '01.85 DEEP BREATH'),
+        (3.00, '03.00 RELAX'),
+        (5.10, '05.10 NIGHT PAINTING'),
+        (10.60, '10.60 BILINGUAL CARD'),
+        (13.80, '13.80 DAY RESIDENCE'),
+        (19.20, '19.20 PAINTING GLIDE'),
+        (23.30, '23.30 BARH LOGO'),
     ]
     tiles = []
     for ts, lbl in stamps:
