@@ -23,7 +23,7 @@ FPS = 30
 BPM = 59.5
 BEAT = 60.0 / BPM             # 1.008403 s
 BAR = 4 * BEAT                # 4.033613 s
-DUR = 6.0 * BAR               # 24.201681 s
+DUR = 6.5 * BAR               # 26.218487 s
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
@@ -231,18 +231,18 @@ def overlay_tile(frame, tile, cx, cy, alpha=1.0):
     return frame
 
 
-# Таймлайн (59.5 BPM «Secret Dreams», 24.20 с — больше времени на саму картину)
-T_NIGHT_END = 5.65       # Ночной пентхаус: 4 крупных последовательных слова + чистый показ картины
-T_TEXT_END = 11.45       # Двуязычный кадр между ночью и днём (6 строф EN + RU)
-T_DAY_END = 16.45        # Дневная резиденция с живым солнечным лучом (5.00 с)
-T_PAN_END = 22.10        # Плавный проезд по всей ширине картины (5.65 с)
-                         # 22.10 – 24.20 с — Белый логотип BARH на #000000
+# Таймлайн (59.5 BPM «Secret Dreams», 26.22 с — неспешная пауза на картине в начале)
+T_NIGHT_END = 7.90       # 0.00–4.65 с слова -> 4.65–7.90 с чистая пауза 3.25 с, чтобы рассмотреть картину
+T_TEXT_END = 13.70       # Двуязычный кадр между ночью и днём (5.80 с)
+T_DAY_END = 18.70        # Дневная резиденция с живым солнечным лучом (5.00 с)
+T_PAN_END = 24.15        # Плавный проезд по всей ширине картины (5.45 с)
+                         # 24.15 – 26.22 с — Белый логотип BARH на #000000
 
 OPEN_STEPS = [
-    (0.08, 1.28, 'Stop.', 'Остановись.', 136, 78),
-    (1.22, 2.44, 'Deep breath.', 'Глубокий вдох.', 120, 74),
-    (2.38, 3.60, 'Relax.', 'Расслабься.', 136, 78),
-    (3.54, 4.76, 'And look.', 'И посмотри.', 126, 78),
+    (0.08, 1.24, 'Stop.', 'Остановись.', 136, 78),
+    (1.18, 2.38, 'Deep breath.', 'Глубокий вдох.', 120, 74),
+    (2.32, 3.52, 'Relax.', 'Расслабься.', 136, 78),
+    (3.46, 4.65, 'And look.', 'И посмотри.', 126, 78),
 ]
 
 STANZAS = [
@@ -397,17 +397,17 @@ def main():
                     '-movflags', '+faststart', '-shortest', OUT_MP4], check=True)
     os.remove(raw)
 
-    cv2.imwrite(OUT_COVER, render_frame(5.10))
+    cv2.imwrite(OUT_COVER, render_frame(6.20))
     cap = cv2.VideoCapture(OUT_MP4)
     stamps = [
         (0.70, '00.70 STOP / OSTANOVIS'),
-        (1.85, '01.85 DEEP BREATH'),
-        (3.00, '03.00 RELAX'),
-        (5.10, '05.10 NIGHT PAINTING'),
-        (10.60, '10.60 BILINGUAL CARD'),
-        (13.80, '13.80 DAY RESIDENCE'),
-        (19.20, '19.20 PAINTING GLIDE'),
-        (23.30, '23.30 BARH LOGO'),
+        (1.80, '01.80 DEEP BREATH'),
+        (4.05, '04.05 AND LOOK'),
+        (6.20, '06.20 PAUSE ON PAINTING'),
+        (12.60, '12.60 BILINGUAL CARD'),
+        (16.00, '16.00 DAY RESIDENCE'),
+        (21.40, '21.40 PAINTING GLIDE'),
+        (25.30, '25.30 BARH LOGO'),
     ]
     tiles = []
     for ts, lbl in stamps:
