@@ -260,8 +260,8 @@ def plaque_overlay():
     """Тонкая музейная плашка с тёплой золотистой рамкой для выделения блока 'This is my new work.'."""
     im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    d.rounded_rectangle((68, 1140, W - 68, 1625), radius=28,
-                        fill=(248, 224, 178, 22), outline=(244, 212, 148, 105), width=2)
+    d.rounded_rectangle((36, 1140, W - 36, 1625), radius=28,
+                        fill=(16, 15, 13, 172), outline=(244, 212, 148, 135), width=2)
     return np.array(im)
 
 
@@ -288,7 +288,15 @@ def scene_night(t):
 
 
 def scene_bilingual_text(t):
-    fr = TEXT_BG.copy()
+    # Показываем саму картину за текстом (бархатная тёмная вуаль + плавное движение вниз)
+    p = np.clip((t - (T_NIGHT_END - 0.65)) / (T_TEXT_END - (T_NIGHT_END - 0.65)), 0.0, 1.0)
+    q = 0.5 - 0.5 * np.cos(np.pi * p)
+    vh = H * (SW / W)
+    art_bg = full_width_art(vh / 2.0 + 240.0 + 400.0 * q)
+    # Лёгкая кинематографичная мягкость фона + затемнение под текст для безупречной читаемости
+    art_soft = cv2.GaussianBlur(art_bg, (0, 0), 3.0)
+    vig = np.clip(0.32 + 0.24 * (1.0 - np.abs(gy - H * 0.45) / (H * 0.65)), 0.22, 0.52)[..., None]
+    fr = art_soft * vig + TEXT_BG * 0.22
     fr = add_dust_motes(fr, t * 0.65, warmth=(210, 225, 245))
     a_all = 1.0 - sm(T_TEXT_END - 0.65, T_TEXT_END, t)
 
@@ -305,23 +313,23 @@ def scene_bilingual_text(t):
             continue
         if idx == 4:          # Выделенный акцент: «This is my new work. / Это моя новая работа.»
             sz_en, sz_ru = 64, 42
-            col_en, col_ru = (248, 222, 166), (238, 214, 170)
+            col_en, col_ru = (250, 224, 168), (240, 216, 172)
             wt_en, wt_ru = 600, 400
         elif idx == 5:        # Название и размеры картины
-            sz_en, sz_ru = 46, 34
-            col_en, col_ru = (255, 252, 246), (222, 218, 210)
+            sz_en, sz_ru = 42, 33
+            col_en, col_ru = (255, 252, 246), (226, 222, 214)
             wt_en, wt_ru = 500, 350
-        else:                 # Верхние 4 вопроса
+        else:                 # Верхние 4 вопроса поверх картины
             sz_en = 56 if idx == 3 else 60
             sz_ru = 38 if idx in (2, 3) else 40
-            col_en, col_ru = (232, 230, 226), (174, 174, 172)
-            wt_en, wt_ru = 400, 300
+            col_en, col_ru = (250, 248, 242), (212, 208, 200)
+            wt_en, wt_ru = 500, 350
 
-        t_e = text_tile(txt_en, F_OSWALD, sz_en, 1, col_en, shadow=True, weight=wt_en)
-        t_r = text_tile(txt_ru, F_OSWALD, sz_ru, 1, col_ru, shadow=True, weight=wt_ru)
+        t_e = text_tile(txt_en, F_OSWALD, sz_en, 2, col_en, shadow=True, weight=wt_en)
+        t_r = text_tile(txt_ru, F_OSWALD, sz_ru, 2, col_ru, shadow=True, weight=wt_ru)
         dy = (1.0 - sm(t_on, t_on + 0.60, t)) * 10.0
-        fr = overlay_tile(fr, t_e, W / 2, y_en + dy, a * 0.98)
-        fr = overlay_tile(fr, t_r, W / 2, y_ru + dy, a * 0.94)
+        fr = overlay_tile(fr, t_e, W / 2, y_en + dy, a * 0.99)
+        fr = overlay_tile(fr, t_r, W / 2, y_ru + dy, a * 0.96)
     return fr
 
 
