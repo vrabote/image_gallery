@@ -16,7 +16,7 @@ SR = 48000
 BPM = 59.5                    # half-time от 119 BPM («Secret Dreams»)
 BEAT = 60.0 / BPM             # 1.008403 s
 BAR = 4 * BEAT                # 4.033613 s
-DUR = 6.5 * BAR               # 26.218487 s
+DUR = 8.5 * BAR               # 34.285714 s
 N = int(round(DUR * SR))
 
 rng = np.random.default_rng(1978)
@@ -140,79 +140,82 @@ def main():
     buf = np.zeros((N, 2), np.float64)
     lead_buf = np.zeros((N, 2), np.float64)
 
-    # Ночная прог-гармония в D minor (камерная, глубокая, как в 'Secret Dreams'):
-    # Dm9 -> Gm9 -> Cmaj7 -> Fmaj7 -> Bbmaj7 -> Dm9
+    # Ночная прог-гармония в D minor (8.5 тактов, 34.29 с — спокойное дыхание на всю сцену)
     chords = [
-        (0, 73.42, [146.83, 220.00, 261.63, 329.63, 349.23], [146.83, 220.00, 329.63, 349.23]),  # Dm9
-        (1, 49.00, [196.00, 233.08, 293.66, 349.23, 440.00], [196.00, 293.66, 349.23, 440.00]),  # Gm9
-        (2, 65.41, [130.81, 196.00, 246.94, 329.63, 392.00], [130.81, 246.94, 329.63, 392.00]),  # Cmaj7
-        (3, 87.31, [174.61, 220.00, 261.63, 329.63, 440.00], [174.61, 261.63, 329.63, 440.00]),  # Fmaj7
-        (4, 58.27, [116.54, 174.61, 220.00, 293.66, 349.23], [116.54, 220.00, 293.66, 349.23]),  # Bbmaj7
-        (5, 73.42, [146.83, 220.00, 261.63, 329.63], [146.83, 220.00, 261.63, 329.63]),          # Dm7 (полутакт-аутро)
+        (0, 73.42, [146.83, 220.00, 261.63, 329.63, 349.23], [146.83, 220.00, 329.63, 349.23]),  # Dm9 (Stop / Deep breath)
+        (1, 49.00, [196.00, 233.08, 293.66, 349.23, 440.00], [196.00, 293.66, 349.23, 440.00]),  # Gm9 (Relax / And look)
+        (2, 73.42, [146.83, 220.00, 261.63, 329.63, 349.23], [146.83, 220.00, 329.63, 349.23]),  # Dm9 (Pause on painting)
+        (3, 65.41, [130.81, 196.00, 246.94, 329.63, 392.00], [130.81, 246.94, 329.63, 392.00]),  # Cmaj7 (Bilingual questions)
+        (4, 58.27, [116.54, 174.61, 220.00, 293.66, 349.23], [116.54, 220.00, 293.66, 349.23]),  # Bbmaj7 (This is my new work)
+        (5, 87.31, [174.61, 220.00, 261.63, 329.63, 440.00], [174.61, 261.63, 329.63, 440.00]),  # Fmaj7 (Daylight residence)
+        (6, 49.00, [196.00, 233.08, 293.66, 349.23, 440.00], [196.00, 293.66, 349.23, 440.00]),  # Gm9 (Painting glide top)
+        (7, 55.00, [110.00, 164.81, 220.00, 293.66, 329.63], [110.00, 220.00, 293.66, 329.63]),  # Asus4->Am (Painting glide low)
     ]
 
     for b_idx, f_bass, str_freqs, arp_freqs in chords:
         bs = b_idx * BAR
-        dur_bar = BAR
-        sl, sr = prog_nocturne_pad(str_freqs, dur_bar + 0.55)
+        sl, sr = prog_nocturne_pad(str_freqs, BAR + 0.55)
         i0 = int(round(bs * SR))
         ln = min(len(sl), N - i0)
         buf[i0:i0 + ln, 0] += sl[:ln]
         buf[i0:i0 + ln, 1] += sr[:ln]
 
-        if b_idx < 5:
-            add(buf, bs, warm_sub(f_bass, BAR - 0.06), gain=0.78)
+        if b_idx == 0:
+            add(buf, bs, warm_sub(f_bass, BAR - 0.06), gain=0.62)
+            for st, idx_n in enumerate([0, 1, 2, 3]):
+                add(lead_buf, bs + st * BEAT,
+                    crystal_ep(arp_freqs[idx_n] * 2.0, 2.40),
+                    gain=0.22, pan=-0.18 + 0.12 * st)
+        else:
+            add(buf, bs, warm_sub(f_bass, BAR - 0.06), gain=0.76)
             seq = [0, 1, 2, 3, 2, 1, 2, 3]
             for st, idx_n in enumerate(seq):
                 add(lead_buf, bs + st * 0.5 * BEAT,
-                    crystal_ep(arp_freqs[idx_n] * 2.0, 1.85),
-                    gain=0.28, pan=-0.26 + 0.075 * st)
-        else:
-            # Последние 1.5 такта (Bar 5 + полтакта Bar 6) — мягкое разрешение
-            add(buf, bs, warm_sub(f_bass, BAR - 0.06), gain=0.68)
-            for st, idx_n in enumerate([0, 1, 2, 3, 2, 1, 2, 3]):
-                add(lead_buf, bs + st * 0.5 * BEAT,
-                    crystal_ep(arp_freqs[idx_n] * 2.0, 2.00),
-                    gain=0.24, pan=-0.18 + 0.06 * st)
+                    crystal_ep(arp_freqs[idx_n] * 2.0, 1.90),
+                    gain=0.26, pan=-0.26 + 0.075 * st)
 
-        # Тихий невесомый ночной пульс с Bar 1 по Bar 5
-        if 1 <= b_idx <= 5:
+        # Тихий невесомый ночной пульс с Bar 2 (когда начинается пауза на картине) по Bar 7
+        if 2 <= b_idx <= 7:
             for bi in (0.0, 2.0):
-                add(buf, bs + bi * BEAT, soft_pulse_kick(), gain=0.68 if b_idx <= 4 else 0.54)
+                add(buf, bs + bi * BEAT, soft_pulse_kick(), gain=0.66 if b_idx <= 6 else 0.52)
             for bi in (1.0, 3.0):
-                add(buf, bs + bi * BEAT, night_brush(), gain=0.55 if b_idx <= 4 else 0.42, pan=-0.08 if bi == 1 else 0.08)
+                add(buf, bs + bi * BEAT, night_brush(), gain=0.52 if b_idx <= 6 else 0.40, pan=-0.08 if bi == 1 else 0.08)
 
-    # Хвост резонанса на последние 0.5 такта (Bar 6)
-    bs6 = 6 * BAR
-    sl6, sr6 = prog_nocturne_pad(chords[-1][2], 0.5 * BAR + 0.40)
-    i6 = int(round(bs6 * SR))
-    ln6 = min(len(sl6), N - i6)
-    buf[i6:i6 + ln6, 0] += sl6[:ln6]
-    buf[i6:i6 + ln6, 1] += sr6[:ln6]
-    add(buf, bs6, warm_sub(73.42, 0.5 * BAR - 0.25), gain=0.52)
+    # Заключительные 0.5 такта (Bar 8: 32.27 - 34.29 с — финальное разрешение на BARH)
+    bs8 = 8 * BAR
+    sl8, sr8 = prog_nocturne_pad([146.83, 220.00, 261.63, 329.63], 0.5 * BAR + 0.40)
+    i8 = int(round(bs8 * SR))
+    ln8 = min(len(sl8), N - i8)
+    buf[i8:i8 + ln8, 0] += sl8[:ln8]
+    buf[i8:i8 + ln8, 1] += sr8[:ln8]
+    add(buf, bs8, warm_sub(73.42, 0.5 * BAR - 0.25), gain=0.52)
 
-    # Интимная ночная мелодия (Bar 1 -> Bar 6)
+    # Интимная ночная мелодия (Bar 2 -> Bar 8)
     mel_notes = [
-        # Bar 1 (4.03 - 8.07): пауза на картине в ночном пентхаусе
-        (1 * BAR + 0.0 * BEAT, 587.33, 1.5 * BEAT),    # D5
-        (1 * BAR + 1.5 * BEAT, 659.25, 0.75 * BEAT),   # E5
-        (1 * BAR + 2.25 * BEAT, 698.46, 1.75 * BEAT),  # F5
-        # Bar 2 (8.07 - 12.10): двуязычный текст
-        (2 * BAR + 0.0 * BEAT, 659.25, 1.5 * BEAT),    # E5
-        (2 * BAR + 1.5 * BEAT, 523.25, 1.0 * BEAT),    # C5
-        (2 * BAR + 2.5 * BEAT, 587.33, 1.5 * BEAT),    # D5
-        # Bar 3 (12.10 - 16.13): дневная резиденция
-        (3 * BAR + 0.0 * BEAT, 880.00, 2.0 * BEAT),    # A5
-        (3 * BAR + 2.0 * BEAT, 783.99, 1.0 * BEAT),    # G5
-        (3 * BAR + 3.0 * BEAT, 698.46, 1.0 * BEAT),    # F5
-        # Bar 4 (16.13 - 20.17): проезд по картине
-        (4 * BAR + 0.0 * BEAT, 698.46, 1.5 * BEAT),    # F5
-        (4 * BAR + 1.5 * BEAT, 659.25, 1.0 * BEAT),    # E5
-        (4 * BAR + 2.5 * BEAT, 587.33, 1.5 * BEAT),    # D5
-        # Bar 5-6 (20.17 - 26.22): нижняя часть картины -> тихое разрешение на BARH
-        (5 * BAR + 0.0 * BEAT, 659.25, 1.5 * BEAT),    # E5
-        (5 * BAR + 1.5 * BEAT, 587.33, 2.5 * BEAT),    # D5
-        (6 * BAR + 0.0 * BEAT, 587.33, 1.8 * BEAT),    # D5
+        # Bar 2 (8.07 - 12.10): чистая пауза на картине после "And look."
+        (2 * BAR + 0.0 * BEAT, 587.33, 1.5 * BEAT),    # D5
+        (2 * BAR + 1.5 * BEAT, 659.25, 0.75 * BEAT),   # E5
+        (2 * BAR + 2.25 * BEAT, 698.46, 1.75 * BEAT),  # F5
+        # Bar 3 (12.10 - 16.13): двуязычные вопросы
+        (3 * BAR + 0.0 * BEAT, 659.25, 1.5 * BEAT),    # E5
+        (3 * BAR + 1.5 * BEAT, 523.25, 1.0 * BEAT),    # C5
+        (3 * BAR + 2.5 * BEAT, 587.33, 1.5 * BEAT),    # D5
+        # Bar 4 (16.13 - 20.17): "This is my new work."
+        (4 * BAR + 0.0 * BEAT, 587.33, 1.5 * BEAT),    # D5
+        (4 * BAR + 1.5 * BEAT, 698.46, 1.0 * BEAT),    # F5
+        (4 * BAR + 2.5 * BEAT, 880.00, 1.5 * BEAT),    # A5
+        # Bar 5 (20.17 - 24.20): дневная резиденция
+        (5 * BAR + 0.0 * BEAT, 783.99, 1.5 * BEAT),    # G5
+        (5 * BAR + 1.5 * BEAT, 698.46, 1.0 * BEAT),    # F5
+        (5 * BAR + 2.5 * BEAT, 659.25, 1.5 * BEAT),    # E5
+        # Bar 6-7 (24.20 - 32.27): проезд по картине
+        (6 * BAR + 0.0 * BEAT, 698.46, 1.5 * BEAT),    # F5
+        (6 * BAR + 1.5 * BEAT, 659.25, 1.0 * BEAT),    # E5
+        (6 * BAR + 2.5 * BEAT, 587.33, 1.5 * BEAT),    # D5
+        (7 * BAR + 0.0 * BEAT, 659.25, 1.75 * BEAT),   # E5
+        (7 * BAR + 1.75 * BEAT, 587.33, 2.25 * BEAT),  # D5
+        # Bar 8 (32.27 - 34.29): тихий финал BARH
+        (8 * BAR + 0.0 * BEAT, 587.33, 1.8 * BEAT),    # D5
     ]
     ls = intimate_synth_flute(mel_notes, DUR)
     lead_buf[:, 0] += ls * 0.90

@@ -23,7 +23,7 @@ FPS = 30
 BPM = 59.5
 BEAT = 60.0 / BPM             # 1.008403 s
 BAR = 4 * BEAT                # 4.033613 s
-DUR = 6.5 * BAR               # 26.218487 s
+DUR = 8.5 * BAR               # 34.285714 s
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
@@ -231,42 +231,52 @@ def overlay_tile(frame, tile, cx, cy, alpha=1.0):
     return frame
 
 
-# Таймлайн (59.5 BPM «Secret Dreams», 26.22 с — неспешная пауза на картине в начале)
-T_NIGHT_END = 7.90       # 0.00–4.65 с слова -> 4.65–7.90 с чистая пауза 3.25 с, чтобы рассмотреть картину
-T_TEXT_END = 13.70       # Двуязычный кадр между ночью и днём (5.80 с)
-T_DAY_END = 18.70        # Дневная резиденция с живым солнечным лучом (5.00 с)
-T_PAN_END = 24.15        # Плавный проезд по всей ширине картины (5.45 с)
-                         # 24.15 – 26.22 с — Белый логотип BARH на #000000
+# Таймлайн (59.5 BPM «Secret Dreams», 34.29 с — спокойное дыхание на старте и чёткое выделение финального блока текста)
+T_NIGHT_END = 12.10      # 0.10–8.55 с (по ~2.1 с на фразу под дыхание) -> 8.55–12.10 с чистая пауза на картине
+T_TEXT_END = 20.60       # Двуязычный кадр между ночью и днём (8.50 с, спокойный шаг 1.2 с)
+T_DAY_END = 25.60        # Дневная резиденция с живым солнечным лучом (5.00 с)
+T_PAN_END = 31.80        # Плавный проезд по всей ширине картины (6.20 с)
+                         # 31.80 – 34.29 с — Белый логотип BARH на #000000
 
 OPEN_STEPS = [
-    (0.08, 1.24, 'Stop.', 'Остановись.', 136, 78),
-    (1.18, 2.38, 'Deep breath.', 'Глубокий вдох.', 120, 74),
-    (2.32, 3.52, 'Relax.', 'Расслабься.', 136, 78),
-    (3.46, 4.65, 'And look.', 'И посмотри.', 126, 78),
+    (0.10, 2.15, 'Stop.', 'Остановись.', 136, 78),
+    (2.20, 4.35, 'Deep breath.', 'Глубокий вдох.', 120, 74),
+    (4.40, 6.45, 'Relax.', 'Расслабься.', 136, 78),
+    (6.50, 8.55, 'And look.', 'И посмотри.', 126, 78),
 ]
 
 STANZAS = [
-    (T_NIGHT_END + 0.12, 325, 392, 'Smile? Always.', 'Улыбаться? Всегда.'),
-    (T_NIGHT_END + 0.85, 535, 602, 'Service? Of course.', 'Обслуживание? Конечно.'),
-    (T_NIGHT_END + 1.58, 745, 812, 'Repeat? Until we land.', 'Повторять? Пока не приземлимся.'),
-    (T_NIGHT_END + 2.31, 955, 1022, 'Tired? Not in the job description.', 'Устал? Этого нет в инструкции.'),
-    (T_NIGHT_END + 3.15, 1230, 1295, 'This is my new work.', 'Это моя новая работа.'),
-    (T_NIGHT_END + 3.85, 1435, 1498, '“Smile Service Repeat” 46×130 cm, oil on canvas', '«Улыбнись. Помоги. Повтори.», 46×130 см, холст, масло.'),
+    (T_NIGHT_END + 0.15, 250, 312, 'Smile? Always.', 'Улыбаться? Всегда.'),
+    (T_NIGHT_END + 1.35, 435, 497, 'Service? Of course.', 'Обслуживание? Конечно.'),
+    (T_NIGHT_END + 2.55, 620, 682, 'Repeat? Until we land.', 'Повторять? Пока не приземлимся.'),
+    (T_NIGHT_END + 3.75, 805, 867, 'Tired? Not in the job description.', 'Устал? Этого нет в инструкции.'),
+    (T_NIGHT_END + 5.20, 1235, 1300, 'This is my new work.', 'Это моя новая работа.'),
+    (T_NIGHT_END + 6.20, 1465, 1528, '“Smile Service Repeat” 46×130 cm, oil on canvas', '«Улыбнись. Помоги. Повтори.», 46×130 см, холст, масло.'),
 ]
+
+
+@lru_cache(maxsize=2)
+def plaque_overlay():
+    """Тонкая музейная плашка с тёплой золотистой рамкой для выделения блока 'This is my new work.'."""
+    im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle((68, 1140, W - 68, 1625), radius=28,
+                        fill=(248, 224, 178, 22), outline=(244, 212, 148, 105), width=2)
+    return np.array(im)
 
 
 def scene_night(t):
     p = np.clip(t / (T_NIGHT_END + 0.5), 0.0, 1.0)
     fr = zoom_room(ROOM_PENTHOUSE, 1.00 + 0.075 * p, cy_shift=-10.0 * p)
     fr = add_dust_motes(fr, t, warmth=(200, 224, 248))
-    if t < 0.24:
-        fr *= sm(0.0, 0.24, t)
+    if t < 0.35:
+        fr *= sm(0.0, 0.35, t)
 
-    # Последовательно появляющиеся и исчезающие ОЧЕНЬ крупные слова поперёк экрана
+    # Медленные синхронные вдоху крупные слова поперёк экрана (~2.1 с каждое)
     for t0, t1, txt_en, txt_ru, sz_en, sz_ru in OPEN_STEPS:
         if t < t0 or t > t1:
             continue
-        a = sm(t0, t0 + 0.26, t) * (1.0 - sm(t1 - 0.30, t1, t))
+        a = sm(t0, t0 + 0.48, t) * (1.0 - sm(t1 - 0.50, t1, t))
         if a > 0.004:
             band = np.exp(-((gy - 880.0) / 195.0) ** 2) * 0.44 * a
             fr *= (1.0 - band[..., None])
@@ -280,28 +290,38 @@ def scene_night(t):
 def scene_bilingual_text(t):
     fr = TEXT_BG.copy()
     fr = add_dust_motes(fr, t * 0.65, warmth=(210, 225, 245))
-    a_all = 1.0 - sm(T_TEXT_END - 0.60, T_TEXT_END, t)
+    a_all = 1.0 - sm(T_TEXT_END - 0.65, T_TEXT_END, t)
 
-    a_rule = sm(T_NIGHT_END + 2.85, T_NIGHT_END + 3.40, t) * a_all
-    if a_rule > 0.01:
-        y_r = 1135
-        x0, x1 = W // 2 - 110, W // 2 + 110
-        fr[y_r:y_r + 2, x0:x1] = fr[y_r:y_r + 2, x0:x1] * (1.0 - 0.30 * a_rule) + 215.0 * (0.30 * a_rule)
+    # Мягкое появление выделенной нижней плашки «This is my new work.» (опущена ниже с большой паузой воздуха)
+    a_plaque = sm(T_NIGHT_END + 4.95, T_NIGHT_END + 5.65, t) * a_all
+    if a_plaque > 0.004:
+        pl = plaque_overlay().astype(np.float32)
+        pa = (pl[..., 3:4] / 255.0) * a_plaque
+        fr = fr * (1.0 - pa) + pl[..., :3][..., ::-1] * pa
 
     for idx, (t_on, y_en, y_ru, txt_en, txt_ru) in enumerate(STANZAS):
-        a = sm(t_on, t_on + 0.48, t) * a_all
+        a = sm(t_on, t_on + 0.60, t) * a_all
         if a <= 0.004:
             continue
-        is_title = (idx == 5)
-        sz_en = 46 if is_title else (58 if idx == 3 else 64)
-        sz_ru = 34 if is_title else (40 if idx in (2, 3) else 42)
-        col_en = (244, 224, 184) if is_title else (248, 245, 238)
-        col_ru = (218, 204, 178) if is_title else (196, 194, 188)
-        t_e = text_tile(txt_en, F_OSWALD, sz_en, 1, col_en, shadow=True, weight=500 if is_title else 400)
-        t_r = text_tile(txt_ru, F_OSWALD, sz_ru, 1, col_ru, shadow=True, weight=350 if is_title else 300)
-        dy = (1.0 - sm(t_on, t_on + 0.48, t)) * 10.0
+        if idx == 4:          # Выделенный акцент: «This is my new work. / Это моя новая работа.»
+            sz_en, sz_ru = 64, 42
+            col_en, col_ru = (248, 222, 166), (238, 214, 170)
+            wt_en, wt_ru = 600, 400
+        elif idx == 5:        # Название и размеры картины
+            sz_en, sz_ru = 46, 34
+            col_en, col_ru = (255, 252, 246), (222, 218, 210)
+            wt_en, wt_ru = 500, 350
+        else:                 # Верхние 4 вопроса
+            sz_en = 56 if idx == 3 else 60
+            sz_ru = 38 if idx in (2, 3) else 40
+            col_en, col_ru = (232, 230, 226), (174, 174, 172)
+            wt_en, wt_ru = 400, 300
+
+        t_e = text_tile(txt_en, F_OSWALD, sz_en, 1, col_en, shadow=True, weight=wt_en)
+        t_r = text_tile(txt_ru, F_OSWALD, sz_ru, 1, col_ru, shadow=True, weight=wt_ru)
+        dy = (1.0 - sm(t_on, t_on + 0.60, t)) * 10.0
         fr = overlay_tile(fr, t_e, W / 2, y_en + dy, a * 0.98)
-        fr = overlay_tile(fr, t_r, W / 2, y_ru + dy, a * 0.92)
+        fr = overlay_tile(fr, t_r, W / 2, y_ru + dy, a * 0.94)
     return fr
 
 
@@ -397,17 +417,17 @@ def main():
                     '-movflags', '+faststart', '-shortest', OUT_MP4], check=True)
     os.remove(raw)
 
-    cv2.imwrite(OUT_COVER, render_frame(6.20))
+    cv2.imwrite(OUT_COVER, render_frame(10.20))
     cap = cv2.VideoCapture(OUT_MP4)
     stamps = [
-        (0.70, '00.70 STOP / OSTANOVIS'),
-        (1.80, '01.80 DEEP BREATH'),
-        (4.05, '04.05 AND LOOK'),
-        (6.20, '06.20 PAUSE ON PAINTING'),
-        (12.60, '12.60 BILINGUAL CARD'),
-        (16.00, '16.00 DAY RESIDENCE'),
-        (21.40, '21.40 PAINTING GLIDE'),
-        (25.30, '25.30 BARH LOGO'),
+        (1.10, '01.10 STOP / OSTANOVIS'),
+        (3.25, '03.25 DEEP BREATH'),
+        (7.50, '07.50 AND LOOK'),
+        (10.30, '10.30 PAUSE ON PAINTING'),
+        (19.60, '19.60 BILINGUAL CARD'),
+        (23.10, '23.10 DAY RESIDENCE'),
+        (28.80, '28.80 PAINTING GLIDE'),
+        (33.20, '33.20 BARH LOGO'),
     ]
     tiles = []
     for ts, lbl in stamps:
