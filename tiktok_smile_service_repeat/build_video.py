@@ -132,19 +132,19 @@ print('Подготовка современных интерьеров 46x130 �
 ROOM_PENTHOUSE = build_mounted_room(
     PENTHOUSE_PATH,
     crop_box=(36, 48, 740, 1298),
-    target_h_1080=805,
-    center_xy_1080=(543, 845),
+    target_h_1080=620,
+    center_xy_1080=(543, 860),
     shadow_dx=5,
-    shadow_dy=16,
+    shadow_dy=15,
     light_mode='penthouse',
 )
 ROOM_MODERN_GAL = build_mounted_room(
     MODERN_GAL_PATH,
     crop_box=(24, 52, 744, 1332),
-    target_h_1080=795,
-    center_xy_1080=(539, 835),
-    shadow_dx=-16,
-    shadow_dy=14,
+    target_h_1080=635,
+    center_xy_1080=(539, 855),
+    shadow_dx=-15,
+    shadow_dy=13,
     light_mode='gallery',
 )
 
