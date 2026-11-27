@@ -23,7 +23,7 @@ FPS = 30
 BPM = 59.5
 BEAT = 60.0 / BPM             # 1.008403 s
 BAR = 4 * BEAT                # 4.033613 s
-DUR = 8.5 * BAR               # 34.285714 s
+DUR = 9.5 * BAR               # 38.319328 s
 
 ART_PATH = 'artwork.jpg'
 LOGO_PATH = 'barh_logo_white.png'
@@ -231,16 +231,17 @@ def overlay_tile(frame, tile, cx, cy, alpha=1.0):
     return frame
 
 
-# Таймлайн (59.5 BPM «Secret Dreams», 34.29 с — спокойное дыхание на старте и чёткое выделение финального блока текста)
+# Таймлайн (59.5 BPM «Secret Dreams», 38.32 с — спокойное дыхание + вся картина в интерьере перед лого BARH)
 T_NIGHT_END = 12.10      # 0.10–8.55 с (по ~2.1 с на фразу под дыхание) -> 8.55–12.10 с чистая пауза на картине
-T_TEXT_END = 20.60       # Двуязычный кадр между ночью и днём (8.50 с, спокойный шаг 1.2 с)
+T_TEXT_END = 20.60       # Двуязычный текст поверх картины (8.50 с, спокойный шаг 1.2 с)
 T_DAY_END = 25.60        # Дневная резиденция с живым солнечным лучом (5.00 с)
-T_PAN_END = 31.80        # Плавный проезд по всей ширине картины (6.20 с)
-                         # 31.80 – 34.29 с — Белый логотип BARH на #000000
+T_PAN_END = 31.60        # Плавный проезд по всей ширине картины (6.00 с)
+T_OUTRO_END = 35.80      # Ещё раз вся картина целиком в интерьере перед финалом (4.20 с)
+                         # 35.80 – 38.32 с — Белый логотип BARH на #000000
 
 OPEN_STEPS = [
     (0.10, 2.15, 'Stop.', 'Остановись.', 136, 78),
-    (2.20, 4.35, 'Deep breath.', 'Глубокий вдох.', 120, 74),
+    (2.20, 4.35, 'Deep exhale.', 'Глубокий выдох.', 120, 74),
     (4.40, 6.45, 'Relax.', 'Расслабься.', 136, 78),
     (6.50, 8.55, 'And look.', 'И посмотри.', 126, 78),
 ]
@@ -355,8 +356,17 @@ def scene_pan(t):
     return full_width_art(cy0 + (cy1 - cy0) * q)
 
 
+def scene_outro_room(t):
+    """Возврат к общему виду: вся картина целиком в спокойном вечернем интерьере перед BARH."""
+    p = np.clip((t - (T_PAN_END - 0.65)) / (T_OUTRO_END - (T_PAN_END - 0.65)), 0.0, 1.0)
+    q = 0.5 - 0.5 * np.cos(np.pi * p)
+    fr = zoom_room(ROOM_PENTHOUSE, 1.055 - 0.055 * q, cy_shift=-6.0 * (1.0 - q))
+    fr = add_dust_motes(fr, t + 4.0, warmth=(200, 224, 248))
+    return fr
+
+
 def scene_barh(t):
-    dt = max(0.0, t - T_PAN_END)
+    dt = max(0.0, t - T_OUTRO_END)
     frame = np.zeros((H, W, 3), np.float32)
     q = np.clip((dt - 0.05) / 0.85, 0.0, 1.0)
     q = q * q * (3.0 - 2.0 * q)
@@ -389,8 +399,13 @@ def render_frame(t):
             fr = fr * (1.0 - q) + scene_pan(t) * q
     elif t < T_PAN_END:
         fr = scene_pan(t)
-        if t > T_PAN_END - 0.55:
-            q = sm(T_PAN_END - 0.55, T_PAN_END, t)
+        if t > T_PAN_END - xf:
+            q = sm(T_PAN_END - xf, T_PAN_END, t)
+            fr = fr * (1.0 - q) + scene_outro_room(t) * q
+    elif t < T_OUTRO_END:
+        fr = scene_outro_room(t)
+        if t > T_OUTRO_END - 0.65:
+            q = sm(T_OUTRO_END - 0.65, T_OUTRO_END, t)
             fr = fr * (1.0 - q) + scene_barh(t) * q
     else:
         fr = scene_barh(t)
@@ -429,13 +444,13 @@ def main():
     cap = cv2.VideoCapture(OUT_MP4)
     stamps = [
         (1.10, '01.10 STOP / OSTANOVIS'),
-        (3.25, '03.25 DEEP BREATH'),
-        (7.50, '07.50 AND LOOK'),
+        (3.25, '03.25 DEEP EXHALE'),
         (10.30, '10.30 PAUSE ON PAINTING'),
-        (19.60, '19.60 BILINGUAL CARD'),
+        (19.60, '19.60 BILINGUAL OVER ART'),
         (23.10, '23.10 DAY RESIDENCE'),
-        (28.80, '28.80 PAINTING GLIDE'),
-        (33.20, '33.20 BARH LOGO'),
+        (28.60, '28.60 PAINTING GLIDE'),
+        (33.70, '33.70 FULL ROOM OUTRO'),
+        (37.20, '37.20 BARH LOGO'),
     ]
     tiles = []
     for ts, lbl in stamps:
